@@ -1,0 +1,161 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m with context %}
+{% block title %}Панель создателя{% endblock %}
+
+{% block content %}
+<section class="container">
+  <div class="creator-hero card reveal">
+    <div class="creator-hero-copy">
+      <span class="eyebrow eyebrow-gold">{{ icon('crown', 14) }} Создатель платформы</span>
+      <h1>Прибыль ТурниРУМ</h1>
+      <p class="muted">Вы получаете <b>{{ PLATFORM_FEE }}%</b> от общей выручки каждого платного турнира. Бесплатные турниры комиссией не облагаются.</p>
+      <div class="creator-actions">
+        <a class="btn btn-gold" href="{{ url_for('creator.tournaments') }}">{{ icon('shield', 16) }} Управление турнирами</a>
+        <a class="btn btn-ghost" href="{{ url_for('creator.users') }}">{{ icon('users', 16) }} Пользователи</a>
+      </div>
+    </div>
+    <div class="creator-profit">
+      <small>Ваша прибыль</small>
+      <b data-count="{{ collected.platform }}" data-suffix=" {{ CURRENCY }}">{{ collected.platform|money }}</b>
+      <span>{{ icon('trend', 15) }} + {{ (expected.platform - collected.platform)|money }} ожидают подтверждения оплаты</span>
+    </div>
+    <div class="creator-hero-crown" aria-hidden="true">{{ icon('crown', 220) }}</div>
+  </div>
+
+  <div class="kpis">
+    {{ m.kpi('coins', 'Оборот платформы', collected.total|money, 'все подтверждённые взносы', 'violet') }}
+    {{ m.kpi('bank', 'Прибыль платформы', collected.platform|money, PLATFORM_FEE ~ '% от оборота', 'amber') }}
+    {{ m.kpi('trend', 'Потенциал прибыли', potential.platform|money, 'если все турниры заполнятся', 'cyan') }}
+    {{ m.kpi('trophy', 'Призовые фонды', collected.prize|money, 'для победителей', 'pink') }}
+    {{ m.kpi('wallet', 'Доход организаторов', collected.organizer|money, counts.organizers|plural('организатор', 'организатора', 'организаторов'), 'green') }}
+  </div>
+
+  <div class="two-col">
+    <div class="card card-pad reveal">
+      <div class="card-head">
+        <h3 class="card-title">{{ icon('pie', 18) }} Куда идут деньги</h3>
+        <span class="muted small">все платные турниры</span>
+      </div>
+      <div class="donut-row">
+        {% if collected.total %}
+          {{ m.donut(collected, 'Оборот') }}
+        {% else %}
+          <div class="donut" style="--size: 190px; --p1: 60; --p2: {{ 100 - PLATFORM_FEE - 60 }}"><div class="donut-center"><small>Пока нет оплат</small><b>{{ 0|money }}</b></div></div>
+        {% endif %}
+        {{ m.split_legend(collected, 'platform') }}
+      </div>
+    </div>
+
+    <div class="card card-pad reveal">
+      <div class="card-head">
+        <h3 class="card-title">{{ icon('dashboard', 18) }} Платформа в цифрах</h3>
+      </div>
+      <div class="mini-stats">
+        <div><b>{{ counts.tournaments }}</b><small>{{ counts.tournaments|plural_word('турнир', 'турнира', 'турниров') }}</small></div>
+        <div><b>{{ counts.paid }}</b><small>платных</small></div>
+        <div><b>{{ counts.free }}</b><small>бесплатных</small></div>
+        <div><b>{{ counts.active }}</b><small>идут сейчас</small></div>
+        <div><b>{{ counts.organizers }}</b><small>{{ counts.organizers|plural_word('организатор', 'организатора', 'организаторов') }}</small></div>
+        <div><b>{{ counts.participants }}</b><small>{{ counts.participants|plural_word('участник', 'участника', 'участников') }}</small></div>
+        <div><b>{{ counts.teams }}</b><small>{{ counts.teams|plural_word('команда', 'команды', 'команд') }}</small></div>
+        <div><b>{{ PLATFORM_FEE }}%</b><small>ставка комиссии</small></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card card-pad reveal">
+      <div class="card-head">
+        <h3 class="card-title">{{ icon('gamepad', 18) }} Оборот по играм</h3>
+      </div>
+      {% if games %}
+                <ul class="hbars">
+          {% for name, data in games %}
+            {% set st = game_style(name) %}
+            <li>
+              <div class="hbar-head">
+                <span><i class="chip-dot" style="--c1: {{ st.c1 }}; --c2: {{ st.c2 }}"></i>{{ name }} <small class="muted">· {{ data.count|plural('турнир', 'турнира', 'турниров') }}</small></span>
+                <b>{{ data.gmv|money }}</b>
+              </div>
+              <div class="hbar"><span style="--w: {{ (data.gmv * 100 / games_top)|round(1) }}; --c1: {{ st.c1 }}; --c2: {{ st.c2 }}"></span></div>
+              <small class="muted">прибыль платформы: {{ data.platform|money }}</small>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        {{ m.empty_state('gamepad', 'Нет данных', 'Здесь появится статистика, когда организаторы создадут турниры.') }}
+      {% endif %}
+    </div>
+
+    <div class="card card-pad reveal">
+      <div class="card-head">
+        <h3 class="card-title">{{ icon('crown', 18) }} Топ организаторов</h3>
+        <span class="muted small">по принесённой прибыли</span>
+      </div>
+      {% if organizers %}
+        <ol class="leaderboard">
+          {% for org in organizers %}
+            <li>
+              {{ m.place_badge(loop.index) }}
+              <span class="avatar" style="--h: {{ hue_of(org.name) }}">{{ initials(org.name) }}</span>
+              <div class="leader-name"><b>{{ org.name }}</b><small>{{ org.count|plural('турнир', 'турнира', 'турниров') }} · оборот {{ org.gmv|money }}</small></div>
+              <b class="leader-value">{{ org.platform|money }}</b>
+            </li>
+          {% endfor %}
+        </ol>
+      {% else %}
+        {{ m.empty_state('users', 'Организаторов пока нет', 'Пригласите первых организаторов на платформу.') }}
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card card-pad reveal">
+    <div class="card-head">
+      <h3 class="card-title">{{ icon('coins', 18) }} Самые прибыльные турниры</h3>
+      <a class="btn btn-ghost btn-sm" href="{{ url_for('creator.tournaments') }}">Все турниры {{ icon('arrow', 15) }}</a>
+    </div>
+    {% if top_paid %}
+      <div class="table-wrap">
+        <table class="standings">
+          <thead>
+            <tr>
+              <th>Турнир</th>
+              <th>Организатор</th>
+              <th class="num">Оплатили</th>
+              <th class="num">Оборот</th>
+              <th class="num">Ваша прибыль</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in top_paid %}
+              <tr>
+                <td>
+                  <div class="team-cell">
+                    {{ m.game_tile(t, 'sm') }}
+                    <div class="team-name"><a href="{{ url_for('main.detail', tid=t.id) }}"><b>{{ t.title }}</b></a><small>{{ t.game }} · {{ t.status_label }}</small></div>
+                  </div>
+                </td>
+                <td class="muted">{{ t.organizer_name }}</td>
+                <td class="num nowrap">{{ t.paid_count }} × {{ t.entry_fee|money }}</td>
+                <td class="num nowrap">{{ t.finance.collected.total|money }}</td>
+                <td class="num nowrap"><b class="money-platform">{{ t.finance.collected.platform|money }}</b></td>
+                <td class="num">
+                  <form method="post" action="{{ url_for('creator.delete_tournament', tid=t.id) }}"
+                        data-confirm="Турнир «{{ t.title }}» и {{ t.team_count|plural('команда', 'команды', 'команд') }} будут удалены безвозвратно." data-confirm-title="Удалить турнир?">
+                    {{ m.csrf() }}
+                    <input type="hidden" name="back" value="dashboard">
+                    <button class="icon-btn icon-btn-danger" type="submit" title="Удалить турнир" aria-label="Удалить турнир">{{ icon('trash', 16) }}</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      {{ m.empty_state('coins', 'Платных турниров пока нет', 'Прибыль появится, когда организаторы проведут первые платные турниры.') }}
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

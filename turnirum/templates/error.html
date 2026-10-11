@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<section class="container error-page">
+  <div class="error-code grad-text">{{ code }}</div>
+  <h1>{{ title }}</h1>
+  <p class="muted">{{ text }}</p>
+  <div class="hero-actions hero-actions-center">
+    <a class="btn btn-primary" href="{{ url_for('main.index') }}">{{ icon('back', 16) }} На главную</a>
+    <a class="btn btn-ghost" href="{{ url_for('main.catalog') }}">Каталог турниров</a>
+  </div>
+</section>
+{% endblock %}

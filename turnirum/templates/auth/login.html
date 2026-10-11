@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m with context %}
+{% block title %}Вход{% endblock %}
+
+{% block content %}
+<section class="container auth-wrap">
+  <aside class="auth-art auth-art-login">
+    <div class="auth-art-inner">
+      <span class="eyebrow eyebrow-light">{{ icon('zap', 14) }} С возвращением</span>
+      <h1>Таблицы ждут<br><span class="grad-text">новых побед</span></h1>
+      <p>Войдите, чтобы управлять турнирами, следить за таблицами и регистрировать команды.</p>
+      <div class="auth-trophy">{{ icon('trophy', 120) }}</div>
+    </div>
+    <div class="auth-art-glow"></div>
+  </aside>
+
+  <div class="card auth-card">
+    <h2>Вход в ТурниРУМ</h2>
+    <p class="muted">Нет аккаунта? <a class="link" href="{{ url_for('auth.register') }}">Зарегистрироваться</a></p>
+
+    {% if error %}
+      <div class="alert alert-error">{{ icon('alert', 18) }} {{ error }}</div>
+    {% endif %}
+
+    <form method="post" novalidate class="form">
+      {{ m.csrf() }}
+      <label class="field">
+        <span class="label">Логин или e-mail</span>
+        <span class="input-icon">{{ icon('user', 17) }}<input class="input" name="login" value="{{ login_value }}" autocomplete="username" placeholder="nomad_kz" required autofocus></span>
+      </label>
+      <label class="field">
+        <span class="label">Пароль</span>
+        <span class="input-icon">{{ icon('lock', 17) }}<input class="input" type="password" name="password" autocomplete="current-password" placeholder="••••••••" required></span>
+      </label>
+      <button class="btn btn-primary btn-lg btn-block" type="submit">Войти {{ icon('arrow', 18) }}</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

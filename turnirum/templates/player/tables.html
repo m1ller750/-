@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m with context %}
+{% block title %}Турнирные таблицы{% endblock %}
+
+{% macro side_item(item, mine=False) -%}
+  <a href="{{ url_for('player.tables', id=item.id) }}" class="side-item {{ 'active' if t and item.id == t.id }}">
+    {{ m.game_tile(item, 'sm') }}
+    <span class="side-item-text">
+      <b>{{ item.title }}</b>
+      <small><i class="status-dot status-{{ item.status }}"></i>{{ item.status_label }} · {{ item.game }}</small>
+    </span>
+    {% if mine %}<span class="side-star" title="Вы участвуете">{{ icon('star', 14) }}</span>{% endif %}
+  </a>
+{%- endmacro %}
+
+{% block content %}
+<section class="container">
+  <div class="page-head">
+    <div>
+      <span class="eyebrow">{{ icon('table', 14) }} Кабинет участника</span>
+      <h1>Турнирные таблицы</h1>
+      <p class="muted">Следите за положением своей команды и таблицами любых турниров платформы.</p>
+    </div>
+    <a class="btn btn-primary" href="{{ url_for('main.catalog', available=1) }}">{{ icon('search', 16) }} Найти турнир</a>
+  </div>
+
+  {% if not t %}
+    {{ m.empty_state('table', 'Турниров пока нет', 'Как только организаторы создадут турниры, их таблицы появятся здесь.') }}
+  {% else %}
+  <div class="split">
+    <aside class="side-list card" data-tabs>
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab {{ 'is-on' if mine }}" data-tab="mine" role="tab">Мои <span class="count-pill">{{ mine|length }}</span></button>
+        <button type="button" class="tab {{ 'is-on' if not mine }}" data-tab="all" role="tab">Все <span class="count-pill">{{ others|length }}</span></button>
+      </div>
+      <nav data-tab-panel="mine" {{ 'hidden' if not mine }}>
+        {% for item in mine %}{{ side_item(item, True) }}{% else %}
+          <div class="side-empty">
+            {{ icon('swords', 22) }}
+            <p>Вы ещё не участвуете в турнирах.</p>
+            <a class="btn btn-primary btn-sm" href="{{ url_for('main.catalog', available=1) }}">Выбрать турнир</a>
+          </div>
+        {% endfor %}
+      </nav>
+      <nav data-tab-panel="all" {{ 'hidden' if mine }}>
+        {% for item in others %}{{ side_item(item) }}{% else %}<div class="side-empty"><p>Других турниров пока нет.</p></div>{% endfor %}
+      </nav>
+    </aside>
+
+    <div class="split-main">
+      <div class="card manage-head" style="--c1: {{ t.style.c1 }}; --c2: {{ t.style.c2 }}">
+        <div class="manage-head-top">
+          {{ m.game_tile(t, 'lg') }}
+          <div class="manage-head-title">
+            <div class="t-hero-badges">{{ m.status_badge(t) }}{{ m.price_badge(t) }}</div>
+            <h2>{{ t.title }}</h2>
+            <div class="t-meta">
+              <span>{{ icon('gamepad', 15) }} {{ t.game }}</span>
+              <span>{{ icon('calendar', 15) }} {{ t.start_at|ru_date(True) }}</span>
+              <span>{{ icon('user', 15) }} {{ t.organizer_name }}</span>
+            </div>
+          </div>
+          <div class="manage-head-actions">
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('main.detail', tid=t.id) }}">{{ icon('eye', 15) }} Страница турнира</a>
+          </div>
+        </div>
+      </div>
+
+      {% if my_team %}
+        <div class="kpis kpis-4">
+          {{ m.kpi('crown', 'Место', my_team.place ~ ' из ' ~ teams|length, my_team.name, 'amber') }}
+          {{ m.kpi('star', 'Очки', my_team.points, my_team.played|plural('матч сыгран', 'матча сыграно', 'матчей сыграно'), 'violet') }}
+          {{ m.kpi('swords', 'Баланс', my_team.wins ~ '–' ~ my_team.draws ~ '–' ~ my_team.losses, 'победы · ничьи · пор.', 'cyan') }}
+          {% if t.is_paid %}
+            {{ m.kpi('check' if my_team.is_paid else 'hourglass', 'Взнос', 'Оплачен' if my_team.is_paid else 'Ожидает', t.entry_fee|money, 'green' if my_team.is_paid else 'pink') }}
+          {% else %}
+            {{ m.kpi('trophy', 'Призовой фонд', 'Бесплатный', t.prize_note or 'турнир без взноса', 'green') }}
+          {% endif %}
+        </div>
+      {% elif t.is_paid %}
+        <div class="kpis kpis-3">
+          {{ m.kpi('trophy', 'Призовой фонд', t.finance.collected.prize|money, 'до ' ~ t.finance.potential.prize|money, 'amber') }}
+          {{ m.kpi('users', 'Команды', t.team_count ~ ' / ' ~ t.max_teams, t.slots_left|plural('место свободно', 'места свободно', 'мест свободно'), 'violet') }}
+          {{ m.kpi('coins', 'Взнос', t.entry_fee|money, 'с команды', 'cyan') }}
+        </div>
+      {% endif %}
+
+      <div class="card card-pad">
+        <div class="card-head">
+          <h3 class="card-title">{{ icon('table', 18) }} Турнирная таблица</h3>
+          {% if not my_team and t.is_open %}
+            <a class="btn btn-primary btn-sm" href="{{ url_for('main.join', tid=t.id) }}">{{ icon('swords', 15) }} Участвовать</a>
+          {% endif %}
+        </div>
+        {{ m.standings_table(t, teams, my_team.id if my_team else None) }}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

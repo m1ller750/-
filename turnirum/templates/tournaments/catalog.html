@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m with context %}
+{% block title %}Каталог турниров{% endblock %}
+
+{% block content %}
+<section class="container">
+  <div class="page-head">
+    <div>
+      <span class="eyebrow">{{ icon('trophy', 14) }} Каталог</span>
+      <h1>Найдите свой турнир</h1>
+      <p class="muted">Фильтруйте по игре, стоимости, формату и статусу — и регистрируйте команду.</p>
+    </div>
+    <div class="result-count">
+      <b>{{ tournaments|length }}</b>
+      <span>{{ tournaments|length|plural_word('турнир найден', 'турнира найдено', 'турниров найдено') }}</span>
+    </div>
+  </div>
+
+  <form class="card filters" method="get" data-autosubmit>
+    <div class="filters-top">
+      <label class="search-field">
+        {{ icon('search', 20) }}
+        <input class="input input-lg" type="search" name="q" value="{{ f.q }}" placeholder="Название, игра, город или организатор" data-search>
+      </label>
+      <label class="select-wrap">
+        {{ icon('sliders', 16) }}
+        <select class="select" name="sort" aria-label="Сортировка">
+          {% for key, (label, _) in sorts.items() %}
+            <option value="{{ key }}" {{ 'selected' if f.sort == key }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <div class="filters-grid">
+      <div class="filter-group">
+        <span class="label">Стоимость</span>
+        <div class="segmented">
+          {% for value, label, ic in [('all', 'Все', 'star'), ('free', 'Бесплатные', 'gift'), ('paid', 'Платные', 'coins')] %}
+            <input type="radio" name="price" id="price-{{ value }}" value="{{ value }}" {{ 'checked' if f.price == value }}>
+            <label for="price-{{ value }}">{{ icon(ic, 14) }} {{ label }}</label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <span class="label">Статус</span>
+        <div class="segmented">
+          {% for value, label in [('all', 'Любой'), ('registration', 'Регистрация'), ('active', 'Идёт'), ('finished', 'Завершён')] %}
+            <input type="radio" name="status" id="status-{{ value }}" value="{{ value }}" {{ 'checked' if f.status == value }}>
+            <label for="status-{{ value }}">{{ label }}</label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <span class="label">Формат</span>
+        <div class="segmented">
+          {% for value, label, ic in [('all', 'Все', 'star'), ('online', 'Онлайн', 'globe'), ('offline', 'Офлайн', 'pin')] %}
+            <input type="radio" name="fmt" id="fmt-{{ value }}" value="{{ value }}" {{ 'checked' if f.fmt == value }}>
+            <label for="fmt-{{ value }}">{{ icon(ic, 14) }} {{ label }}</label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="filter-group filter-range {{ 'is-disabled' if f.price == 'free' }}">
+        <span class="label">Взнос до <output data-range-out="max_fee">{{ (f.max_fee if f.max_fee is not none else fee_ceiling)|money }}</output></span>
+        <input class="range" type="range" name="max_fee" min="0" max="{{ fee_ceiling }}" step="500"
+               value="{{ f.max_fee if f.max_fee is not none else fee_ceiling }}" data-range data-currency="{{ CURRENCY }}"
+               {{ 'data-untouched' if f.max_fee is none }} {{ 'disabled' if f.price == 'free' }}>
+      </div>
+    </div>
+
+    {% if games %}
+      <div class="filter-group">
+        <span class="label">Игра</span>
+        <div class="chips">
+          <input type="radio" name="game" id="game-all" value="" {{ 'checked' if not f.game }}>
+          <label for="game-all" class="chip">Все игры</label>
+          {% for row in games %}
+            {% set st = game_style(row.game) %}
+            <input type="radio" name="game" id="game-{{ loop.index }}" value="{{ row.game }}" {{ 'checked' if f.game|lower == row.game|lower }}>
+            <label for="game-{{ loop.index }}" class="chip" style="--c1: {{ st.c1 }}; --c2: {{ st.c2 }}">
+              <i class="chip-dot"></i>{{ row.game }} <small>{{ row.n }}</small>
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="filters-bottom">
+      <label class="switch">
+        <input type="checkbox" name="available" value="1" {{ 'checked' if f.available }}>
+        <span class="track"></span>
+        <span>Только со свободными местами</span>
+      </label>
+      {% if g.user and g.user.role == 'participant' %}
+        <label class="switch">
+          <input type="checkbox" name="joined" value="1" {{ 'checked' if f.joined }}>
+          <span class="track"></span>
+          <span>Только мои турниры</span>
+        </label>
+      {% endif %}
+      <div class="filters-actions">
+        <noscript><button class="btn btn-primary btn-sm" type="submit">Применить</button></noscript>
+        {% if active_filters %}
+          <a class="btn btn-ghost btn-sm" href="{{ url_for('main.catalog') }}">{{ icon('x', 14) }} Сбросить ({{ active_filters }})</a>
+        {% endif %}
+      </div>
+    </div>
+  </form>
+
+  {% if tournaments %}
+    <div class="t-grid">
+      {% for t in tournaments %}{{ m.tournament_card(t, t.id in joined_ids) }}{% endfor %}
+    </div>
+  {% else %}
+    {% if active_filters %}
+      {{ m.empty_state('search', 'Ничего не нашлось', 'Попробуйте ослабить фильтры или поискать другую игру.') }}
+    {% elif g.user and g.user.role == 'organizer' %}
+      {{ m.empty_state('trophy', 'Здесь пока пусто', 'Создайте первый турнир — игроки уже ждут.', url_for('organizer.create'), 'Создать турнир') }}
+    {% else %}
+      {{ m.empty_state('trophy', 'Здесь пока пусто', 'Организаторы ещё не создали ни одного турнира. Загляните чуть позже!') }}
+    {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

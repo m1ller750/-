@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m with context %}
+{% block title %}Пользователи{% endblock %}
+
+{% block content %}
+<section class="container">
+  <div class="page-head">
+    <div>
+      <span class="eyebrow eyebrow-gold">{{ icon('users', 14) }} Сообщество</span>
+      <h1>Пользователи платформы</h1>
+      <p class="muted">Организаторы, участники и создатели ТурниРУМ.</p>
+    </div>
+    <div class="result-count"><b>{{ users|length }}</b><span>{{ users|length|plural_word('аккаунт', 'аккаунта', 'аккаунтов') }}</span></div>
+  </div>
+
+  <div class="card card-pad">
+    <div class="table-wrap">
+      <table class="standings">
+        <thead>
+          <tr>
+            <th>Пользователь</th>
+            <th>E-mail</th>
+            <th>Роль</th>
+            <th class="num">Турниров</th>
+            <th class="num">Команд</th>
+            <th class="num">Регистрация</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+            <tr>
+              <td>
+                <div class="team-cell">
+                  <span class="avatar" style="--h: {{ hue_of(u.username) }}">{{ initials(u.full_name) }}</span>
+                  <div class="team-name"><b>{{ u.full_name }}</b><small>@{{ u.username }}</small></div>
+                </div>
+              </td>
+              <td class="muted">{{ u.email }}</td>
+              <td><span class="role-tag role-{{ u.role }}">{% if u.role == 'creator' %}{{ icon('crown', 12) }}{% endif %}{{ ROLE_LABELS[u.role] }}</span></td>
+              <td class="num">{{ u.tournaments_count or '—' }}</td>
+              <td class="num">{{ u.teams_count or '—' }}</td>
+              <td class="num nowrap muted">{{ u.created_at|ru_date(False, True) }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{% endblock %}

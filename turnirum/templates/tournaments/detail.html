@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m with context %}
+{% block title %}{{ t.title }}{% endblock %}
+
+{% block content %}
+<section class="container">
+  <a class="back-link" href="{{ url_for('main.catalog') }}">{{ icon('back', 16) }} Все турниры</a>
+
+  <div class="t-hero card" style="--c1: {{ t.style.c1 }}; --c2: {{ t.style.c2 }}">
+    <div class="t-hero-bg"><span>{{ t.style.abbr }}</span></div>
+    <div class="t-hero-content">
+      <div class="t-hero-badges">
+        {{ m.status_badge(t) }}{{ m.price_badge(t) }}
+        <span class="badge badge-glass">{{ icon('gamepad', 13) }}{{ t.game }}</span>
+      </div>
+      <h1>{{ t.title }}</h1>
+      <div class="t-hero-meta">
+        <span>{{ icon('calendar', 16) }} {{ t.start_at|ru_date(True) }} <em>· {{ t.start_at|countdown }}</em></span>
+        <span>{% if t.format == 'offline' %}{{ icon('pin', 16) }} {{ t.city }}{% else %}{{ icon('globe', 16) }} Онлайн{% endif %}</span>
+        <span>{{ icon('users', 16) }} {{ t.team_size|plural('игрок', 'игрока', 'игроков') }} в команде</span>
+        <span>{{ icon('user', 16) }} {{ t.organizer_name }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="detail-grid">
+    <div class="detail-main">
+      {% if t.description %}
+        <div class="card card-pad reveal">
+          <h3 class="card-title">{{ icon('info', 18) }} О турнире</h3>
+          <p class="prewrap">{{ t.description }}</p>
+        </div>
+      {% endif %}
+
+      <div class="card card-pad reveal" id="table">
+        <div class="card-head">
+          <h3 class="card-title">{{ icon('table', 18) }} Турнирная таблица</h3>
+          <span class="muted small">{{ teams|length|plural('команда', 'команды', 'команд') }}</span>
+        </div>
+        {{ m.standings_table(t, teams, my_team.id if my_team else None) }}
+      </div>
+    </div>
+
+    <aside class="detail-side">
+      <div class="card card-pad side-sticky reveal">
+        {% if t.is_paid %}
+          <div class="prize-box">
+            <small>Призовой фонд при полном составе</small>
+            <b class="grad-text">{{ t.finance.potential.prize|money }}</b>
+            <span>Сейчас собрано: {{ t.finance.collected.prize|money }}</span>
+          </div>
+        {% else %}
+          <div class="prize-box prize-box-free">
+            <small>Участие</small>
+            <b>Бесплатно</b>
+            {% if t.prize_note %}<span>{{ icon('gift', 14) }} {{ t.prize_note }}</span>{% endif %}
+          </div>
+        {% endif %}
+
+        <dl class="facts">
+          {% if t.is_paid %}
+            <div><dt>Взнос с команды</dt><dd>{{ t.entry_fee|money }}</dd></div>
+            <div><dt>В призовой фонд</dt><dd>{{ t.prize_percent }}% взносов</dd></div>
+          {% endif %}
+          <div><dt>Мест осталось</dt><dd>{{ t.slots_left }} из {{ t.max_teams }}</dd></div>
+          <div><dt>Старт</dt><dd>{{ t.start_at|ru_date(True, True) }}</dd></div>
+        </dl>
+        <div class="progress progress-lg"><span style="width: {{ t.fill_percent }}%"></span></div>
+
+        <div class="side-actions">
+          {% if my_team %}
+            <div class="my-team-box">
+              <span class="team-avatar" style="--h: {{ my_team.hue }}">{{ my_team.initials }}</span>
+              <div>
+                <small>Ваша команда</small>
+                <b>{{ my_team.name }}</b>
+                {% if t.is_paid %}
+                  {% if my_team.is_paid %}
+                    <span class="pay-state pay-ok">{{ icon('check', 13) }} Взнос подтверждён</span>
+                  {% else %}
+                    <span class="pay-state pay-wait">{{ icon('hourglass', 13) }} Ожидает подтверждения оплаты</span>
+                  {% endif %}
+                {% endif %}
+              </div>
+            </div>
+            <a class="btn btn-ghost btn-block" href="{{ url_for('player.tables', id=t.id) }}">{{ icon('table', 16) }} Открыть в моих таблицах</a>
+            {% if t.status == 'registration' and not my_team.is_paid %}
+              <form method="post" action="{{ url_for('main.leave', tid=t.id) }}" data-confirm="Команда «{{ my_team.name }}» будет снята с турнира." data-confirm-title="Сняться с турнира?" data-confirm-ok="Сняться">
+                {{ m.csrf() }}
+                <button class="btn btn-danger btn-block" type="submit">{{ icon('door', 16) }} Сняться с турнира</button>
+              </form>
+            {% endif %}
+          {% elif is_owner %}
+            <a class="btn btn-primary btn-block" href="{{ url_for('organizer.manage', id=t.id) }}">{{ icon('edit', 16) }} Управлять турниром</a>
+          {% elif g.user and g.user.role == 'creator' %}
+            <a class="btn btn-ghost btn-block" href="{{ url_for('creator.tournaments', q=t.title) }}">{{ icon('shield', 16) }} Управление в панели</a>
+          {% elif t.is_open %}
+            {% if g.user and g.user.role == 'participant' %}
+              <a class="btn btn-primary btn-lg btn-block" href="{{ url_for('main.join', tid=t.id) }}">{{ icon('swords', 18) }} Зарегистрировать команду</a>
+            {% elif g.user %}
+              <div class="hint">{{ icon('info', 16) }} Регистрировать команды могут только участники.</div>
+            {% else %}
+              <a class="btn btn-primary btn-lg btn-block" href="{{ url_for('auth.login', next=url_for('main.join', tid=t.id)) }}">{{ icon('login', 18) }} Войти и участвовать</a>
+              <a class="btn btn-ghost btn-block" href="{{ url_for('auth.register', role='participant') }}">Создать аккаунт участника</a>
+            {% endif %}
+          {% else %}
+            <div class="hint">{{ icon('lock', 16) }}
+              {% if t.status != 'registration' %}Регистрация закрыта — турнир {{ 'уже идёт' if t.status == 'active' else 'завершён' }}.{% else %}Все места заняты.{% endif %}
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </aside>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m with context %}
+{% block title %}Бизнес-модель{% endblock %}
+
+{% block content %}
+<section class="container">
+  <div class="page-head">
+    <div>
+      <span class="eyebrow">{{ icon('pie', 14) }} Бизнес-модель</span>
+      <h1>Как вы зарабатываете</h1>
+      <p class="muted">Взносы команд делятся на три части: призовой фонд, ваш доход и {{ PLATFORM_FEE }}% создателю платформы.</p>
+    </div>
+  </div>
+
+  <div class="flow reveal">
+    <div class="flow-source card">
+      <span class="kpi-icon">{{ icon('users', 20) }}</span>
+      <small>Взносы команд</small>
+      <b>100%</b>
+      <span class="muted small">Команды переводят взнос на вашу карту</span>
+    </div>
+    <div class="flow-arrows" aria-hidden="true">
+      <svg viewBox="0 0 120 220" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="fa" x1="0" x2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#22d3ee"/></linearGradient>
+        </defs>
+        <path d="M0 110 C 60 110, 60 30, 120 30" />
+        <path d="M0 110 L 120 110" />
+        <path d="M0 110 C 60 110, 60 190, 120 190" />
+      </svg>
+    </div>
+    <div class="flow-targets">
+      <div class="flow-target card flow-prize">
+        <i class="sw sw-prize"></i>
+        <div><b>Призовой фонд</b><small>Вы выбираете долю при создании турнира — от 0 до {{ max_prize }}%</small></div>
+        <em>{{ avg_prize }}%<small>в среднем у вас</small></em>
+      </div>
+      <div class="flow-target card flow-org">
+        <i class="sw sw-org"></i>
+        <div><b>Ваш доход</b><small>Всё, что осталось после призов и комиссии платформы</small></div>
+        <em>{{ max_prize - avg_prize }}%<small>в среднем у вас</small></em>
+      </div>
+      <div class="flow-target card flow-platform">
+        <i class="sw sw-platform"></i>
+        <div><b>Создателю платформы</b><small>Фиксированная комиссия с общей выручки платного турнира</small></div>
+        <em>{{ PLATFORM_FEE }}%<small>всегда</small></em>
+      </div>
+    </div>
+  </div>
+
+  <div class="kpis">
+    {{ m.kpi('coins', 'Собрано взносов', collected.total|money, paid|length|plural('платный турнир', 'платных турнира', 'платных турниров'), 'violet') }}
+    {{ m.kpi('wallet', 'Ваш доход', collected.organizer|money, 'уже подтверждённые взносы', 'cyan') }}
+    {{ m.kpi('trophy', 'Призовые фонды', collected.prize|money, 'достанутся победителям', 'amber') }}
+    {{ m.kpi('bank', 'Комиссия платформы', collected.platform|money, PLATFORM_FEE ~ '% от общей выручки', 'pink') }}
+    {{ m.kpi('hourglass', 'Ждут подтверждения', pending|money, pending_teams|plural('команда', 'команды', 'команд'), 'green') }}
+  </div>
+
+  <div class="two-col">
+    <div class="card card-pad reveal">
+      <div class="card-head">
+        <h3 class="card-title">{{ icon('pie', 18) }} Фактическое распределение</h3>
+        <span class="muted small">по подтверждённым взносам</span>
+      </div>
+      <div class="donut-row">
+        {% if collected.total %}
+          {{ m.donut(collected, 'Собрано') }}
+        {% else %}
+          <div class="donut" style="--size: 190px; --p1: {{ avg_prize }}; --p2: {{ max_prize - avg_prize }}">
+            <div class="donut-center"><small>Пока нет оплат</small><b>{{ 0|money }}</b></div>
+          </div>
+        {% endif %}
+        {{ m.split_legend(collected, 'organizer') }}
+      </div>
+    </div>
+    <div class="card card-pad reveal">
+      <div class="card-head">
+        <h3 class="card-title">{{ icon('trend', 18) }} Потенциал</h3>
+        <span class="muted small">если все турниры заполнятся и все оплатят</span>
+      </div>
+      <div class="donut-row">
+        {% if potential.total %}
+          {{ m.donut(potential, 'Максимум') }}
+        {% else %}
+          <div class="donut donut-empty" style="--size: 190px"><div class="donut-center"><small>Нет платных турниров</small><b>—</b></div></div>
+        {% endif %}
+        {{ m.split_legend(potential, 'organizer') }}
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-pad reveal">
+    <div class="card-head">
+      <h3 class="card-title">{{ icon('table', 18) }} Доход по турнирам</h3>
+    </div>
+    {% if tournaments %}
+      <div class="table-wrap">
+        <table class="standings">
+          <thead>
+            <tr>
+              <th>Турнир</th>
+              <th class="num">Взнос</th>
+              <th class="num">Оплатили</th>
+              <th class="num">Собрано</th>
+              <th class="num">Призы</th>
+              <th class="num">Вам</th>
+              <th class="num">Платформе</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in tournaments %}
+              {% set c = t.finance.collected %}
+              <tr>
+                <td>
+                  <div class="team-cell">
+                    {{ m.game_tile(t, 'sm') }}
+                    <div class="team-name"><b>{{ t.title }}</b><small>{{ t.game }} · {{ t.status_label }}</small></div>
+                  </div>
+                </td>
+                {% if t.is_paid %}
+                  <td class="num nowrap">{{ t.entry_fee|money }}</td>
+                  <td class="num nowrap">{{ t.paid_count }} / {{ t.team_count }}</td>
+                  <td class="num nowrap"><b>{{ c.total|money }}</b></td>
+                  <td class="num nowrap"><span class="money-prize">{{ c.prize|money }}</span><small class="pct">{{ t.prize_percent }}%</small></td>
+                  <td class="num nowrap"><span class="money-org">{{ c.organizer|money }}</span><small class="pct">{{ c.organizer_percent }}%</small></td>
+                  <td class="num nowrap"><span class="money-platform">{{ c.platform|money }}</span><small class="pct">{{ PLATFORM_FEE }}%</small></td>
+                {% else %}
+                  <td class="num" colspan="6"><span class="badge badge-free">{{ icon('gift', 13) }}Бесплатный турнир — без взносов и комиссии</span></td>
+                {% endif %}
+                <td class="num"><a class="icon-btn" href="{{ url_for('organizer.edit', tid=t.id) }}" title="Изменить распределение">{{ icon('edit', 16) }}</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      {{ m.empty_state('coins', 'Пока нет турниров', 'Создайте платный турнир, чтобы начать зарабатывать.', url_for('organizer.create'), 'Создать турнир') }}
+    {% endif %}
+  </div>
+
+  <div class="card card-pad calc reveal" data-calc data-platform="{{ PLATFORM_FEE }}" data-currency="{{ CURRENCY }}">
+    <div class="card-head">
+      <h3 class="card-title">{{ icon('sparkles', 18) }} Калькулятор дохода</h3>
+      <span class="muted small">Прикиньте экономику будущего турнира</span>
+    </div>
+    <div class="calc-grid">
+      <div class="calc-inputs">
+        <label class="field">
+          <span class="label">Взнос с команды, {{ CURRENCY }}</span>
+          <input class="input input-lg" type="number" min="0" step="500" value="5000" data-calc-fee>
+        </label>
+        <label class="field">
+          <span class="label">Количество команд</span>
+          <input class="input input-lg" type="number" min="0" max="256" value="16" data-calc-teams>
+        </label>
+        <div class="field">
+          <div class="range-head">
+            <span class="label">Доля призового фонда</span>
+            <b class="range-value"><output data-prize-out>60</output>%</b>
+          </div>
+          <input class="range range-prize" type="range" min="0" max="{{ max_prize }}" step="5" value="60" data-prize-range>
+        </div>
+      </div>
+      <div class="calc-results">
+        <div class="calc-total"><small>Общая выручка</small><b data-out="total">0</b></div>
+        <div class="stack-bar stack-bar-lg">
+          <span class="seg-prize" data-seg="prize"></span>
+          <span class="seg-org" data-seg="organizer"></span>
+          <span class="seg-platform" data-seg="platform"></span>
+        </div>
+        <div class="calc-tiles">
+          <div class="calc-tile tile-prize"><small>Призовой фонд</small><b data-out="prize">0</b><em data-pct="prize"></em></div>
+          <div class="calc-tile tile-org"><small>Ваш доход</small><b data-out="organizer">0</b><em data-pct="organizer"></em></div>
+          <div class="calc-tile tile-platform"><small>Платформе</small><b data-out="platform">0</b><em data-pct="platform"></em></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

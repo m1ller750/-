@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m with context %}
+{% block title %}Регистрация команды · {{ t.title }}{% endblock %}
+
+{% block content %}
+<section class="container narrow">
+  <a class="back-link" href="{{ url_for('main.detail', tid=t.id) }}">{{ icon('back', 16) }} {{ t.title }}</a>
+
+  <div class="page-head">
+    <div>
+      <span class="eyebrow">{{ icon('swords', 14) }} Регистрация команды</span>
+      <h1>{{ t.title }}</h1>
+      <p class="muted">{{ t.game }} · {{ t.start_at|ru_date(True) }} · {{ t.slots_left|plural('место осталось', 'места осталось', 'мест осталось') }}</p>
+    </div>
+    {{ m.game_tile(t, 'lg') }}
+  </div>
+
+  <form method="post" novalidate class="join-grid">
+    {{ m.csrf() }}
+    <div class="card card-pad">
+      <div class="step-title"><span class="step-n">1</span><h3>Ваша команда</h3></div>
+      <label class="field {{ 'has-error' if errors.name }}">
+        <span class="label">Название команды</span>
+        <span class="input-icon">{{ icon('flag', 17) }}<input class="input" name="name" value="{{ form.name }}" maxlength="40" placeholder="Steppe Wolves" required autofocus></span>
+        {{ m.field_error(errors, 'name') }}
+      </label>
+      <label class="field {{ 'has-error' if errors.members }}">
+        <span class="label">Состав — до {{ t.team_size|plural('игрока', 'игроков', 'игроков') }}, по одному в строке</span>
+        <textarea class="textarea" name="members" rows="{{ [t.team_size, 3]|max }}" placeholder="Никнейм капитана&#10;Никнейм игрока 2">{{ form.members }}</textarea>
+        {{ m.field_error(errors, 'members') }}
+      </label>
+    </div>
+
+    {% if t.is_paid %}
+      <div class="card card-pad">
+        <div class="step-title"><span class="step-n">2</span><h3>Оплата взноса</h3></div>
+        <p class="muted">Переведите взнос на карту организатора и отметьте это ниже. Организатор подтвердит оплату в турнирной таблице.</p>
+
+        <div class="pay-layout">
+          <div class="bank-card">
+            <div class="bank-card-top">
+              <span class="bank-chip"></span>
+              <span class="bank-brand">{{ t.card_number|brand }}</span>
+            </div>
+            <div class="bank-number" data-copy="{{ t.card_number }}" title="Нажмите, чтобы скопировать">{{ t.card_number|card }}</div>
+            <div class="bank-card-bottom">
+              <div><small>Получатель</small><b>{{ t.organizer_name }}</b></div>
+              <div class="text-right"><small>Сумма</small><b>{{ t.entry_fee|money }}</b></div>
+            </div>
+          </div>
+
+          <div class="pay-split">
+            <small>Куда пойдёт ваш взнос</small>
+            {% set s = t.finance.potential %}
+            <div class="stack-bar">
+              <span class="seg-prize" style="flex: {{ s.prize_percent }}" title="Призовой фонд"></span>
+              <span class="seg-org" style="flex: {{ s.organizer_percent }}" title="Организатору"></span>
+              <span class="seg-platform" style="flex: {{ s.platform_percent }}" title="Платформе"></span>
+            </div>
+            <ul class="legend legend-compact">
+              <li><i class="sw sw-prize"></i><span>Призовой фонд</span><em>{{ s.prize_percent }}%</em></li>
+              <li><i class="sw sw-org"></i><span>Организатору</span><em>{{ s.organizer_percent }}%</em></li>
+              <li><i class="sw sw-platform"></i><span>Платформе</span><em>{{ s.platform_percent }}%</em></li>
+            </ul>
+          </div>
+        </div>
+
+        <label class="field {{ 'has-error' if errors.payment_note }}">
+          <span class="label">Имя отправителя или последние 4 цифры вашей карты</span>
+          <span class="input-icon">{{ icon('card', 17) }}<input class="input" name="payment_note" value="{{ form.payment_note }}" maxlength="120" placeholder="Алихан Н., карта •• 4821"></span>
+          {{ m.field_error(errors, 'payment_note') }}
+        </label>
+        <label class="check {{ 'has-error' if errors.paid_confirm }}">
+          <input type="checkbox" name="paid_confirm" value="1">
+          <span class="check-box">{{ icon('check', 14) }}</span>
+          <span>Я перевёл(а) <b>{{ t.entry_fee|money }}</b> на карту организатора</span>
+        </label>
+        {{ m.field_error(errors, 'paid_confirm') }}
+      </div>
+    {% endif %}
+
+    <div class="join-submit">
+      <button class="btn btn-primary btn-lg" type="submit">{{ icon('check', 18) }} Зарегистрировать команду</button>
+      <a class="btn btn-ghost btn-lg" href="{{ url_for('main.detail', tid=t.id) }}">Отмена</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m with context %}
+{% block title %}Управление турнирами{% endblock %}
+
+{% block content %}
+<section class="container">
+  <div class="page-head">
+    <div>
+      <span class="eyebrow eyebrow-gold">{{ icon('shield', 14) }} Модерация</span>
+      <h1>Все турниры платформы</h1>
+      <p class="muted">Как создатель платформы вы можете удалить любой турнир — вместе с его командами и таблицей.</p>
+    </div>
+    <div class="result-count"><b>{{ tournaments|length }}</b><span>{{ tournaments|length|plural_word('турнир', 'турнира', 'турниров') }}</span></div>
+  </div>
+
+  <form class="card filters filters-compact" method="get">
+    <label class="search-field">
+      {{ icon('search', 20) }}
+      <input class="input input-lg" type="search" name="q" value="{{ q }}" placeholder="Поиск по названию, игре или организатору">
+    </label>
+    <button class="btn btn-primary" type="submit">Найти</button>
+    {% if q %}<a class="btn btn-ghost" href="{{ url_for('creator.tournaments') }}">{{ icon('x', 14) }} Сбросить</a>{% endif %}
+  </form>
+
+  {% if tournaments %}
+    <div class="card card-pad">
+      <div class="table-wrap">
+        <table class="standings">
+          <thead>
+            <tr>
+              <th>Турнир</th>
+              <th>Организатор</th>
+              <th>Статус</th>
+              <th class="num">Команды</th>
+              <th class="num">Оборот</th>
+              <th class="num">Прибыль ({{ PLATFORM_FEE }}%)</th>
+              <th class="num">Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in tournaments %}
+              <tr>
+                <td>
+                  <div class="team-cell">
+                    {{ m.game_tile(t, 'sm') }}
+                    <div class="team-name">
+                      <a href="{{ url_for('main.detail', tid=t.id) }}"><b>{{ t.title }}</b></a>
+                      <small>{{ t.game }} · {{ t.start_at|ru_date(False, True) }} · {% if t.is_paid %}{{ t.entry_fee|money }}{% else %}бесплатно{% endif %}</small>
+                    </div>
+                  </div>
+                </td>
+                <td class="muted">{{ t.organizer_name }}<br><small class="dim">@{{ t.organizer_username }}</small></td>
+                <td>{{ m.status_badge(t) }}</td>
+                <td class="num nowrap">{{ t.team_count }} / {{ t.max_teams }}</td>
+                <td class="num nowrap">{{ t.finance.collected.total|money if t.is_paid else '—' }}</td>
+                <td class="num nowrap">{% if t.is_paid %}<b class="money-platform">{{ t.finance.collected.platform|money }}</b>{% else %}<span class="dim">—</span>{% endif %}</td>
+                <td class="num">
+                  <div class="row-actions">
+                    <a class="icon-btn" href="{{ url_for('main.detail', tid=t.id) }}" title="Открыть" aria-label="Открыть">{{ icon('eye', 16) }}</a>
+                    <form method="post" action="{{ url_for('creator.delete_tournament', tid=t.id) }}"
+                          data-confirm="Турнир «{{ t.title }}» и {{ t.team_count|plural('команда', 'команды', 'команд') }} будут удалены безвозвратно." data-confirm-title="Удалить турнир?">
+                      {{ m.csrf() }}
+                      {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+                      <button class="icon-btn icon-btn-danger" type="submit" title="Удалить турнир" aria-label="Удалить турнир">{{ icon('trash', 16) }}</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% else %}
+    {{ m.empty_state('search', 'Турниры не найдены', 'Измените запрос или дождитесь, пока организаторы создадут турниры.') }}
+  {% endif %}
+</section>
+{% endblock %}

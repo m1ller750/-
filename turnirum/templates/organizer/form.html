@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m with context %}
+{% block title %}{{ 'Настройки турнира' if t else 'Новый турнир' }}{% endblock %}
+
+{% block content %}
+<section class="container">
+  {% if t %}
+    <a class="back-link" href="{{ url_for('organizer.manage', id=t.id) }}">{{ icon('back', 16) }} {{ t.title }}</a>
+  {% endif %}
+  <div class="page-head">
+    <div>
+      <span class="eyebrow">{{ icon('trophy', 14) }} {{ 'Редактирование' if t else 'Новый турнир' }}</span>
+      <h1>{{ 'Настройки турнира' if t else 'Создайте турнир' }}</h1>
+      <p class="muted">{{ 'Изменения сразу увидят все участники.' if t else 'Заполните детали — турнир сразу появится в каталоге с открытой регистрацией.' }}</p>
+    </div>
+  </div>
+
+  <form method="post" novalidate class="form-layout" data-tournament-form data-platform="{{ PLATFORM_FEE }}" data-currency="{{ CURRENCY }}">
+    {{ m.csrf() }}
+    <div class="form-main">
+      <div class="card card-pad">
+        <div class="step-title"><span class="step-n">1</span><h3>Основное</h3></div>
+        <label class="field {{ 'has-error' if errors.title }}">
+          <span class="label">Название турнира</span>
+          <input class="input input-lg" name="title" value="{{ form.title }}" maxlength="80" placeholder="Кубок Степи 2026" required data-preview="title">
+          {{ m.field_error(errors, 'title') }}
+        </label>
+        <label class="field {{ 'has-error' if errors.game }}">
+          <span class="label">Игра или дисциплина</span>
+          <span class="input-icon">{{ icon('gamepad', 17) }}<input class="input" name="game" value="{{ form.game }}" list="games" maxlength="40" placeholder="Counter-Strike 2" required data-preview="game"></span>
+          <datalist id="games">{% for name in games %}<option value="{{ name }}">{% endfor %}</datalist>
+          {{ m.field_error(errors, 'game') }}
+        </label>
+        <div class="quick-games">
+          {% for name in games[:8] %}<button type="button" class="chip chip-sm" data-fill-game="{{ name }}">{{ name }}</button>{% endfor %}
+        </div>
+        <label class="field {{ 'has-error' if errors.description }}">
+          <span class="label">Описание и регламент</span>
+          <textarea class="textarea" name="description" rows="5" maxlength="2000" placeholder="Формат матчей, правила, расписание, контакты для связи…">{{ form.description }}</textarea>
+          {{ m.field_error(errors, 'description') }}
+        </label>
+      </div>
+
+      <div class="card card-pad">
+        <div class="step-title"><span class="step-n">2</span><h3>Когда и где</h3></div>
+        <div class="form-row">
+          <label class="field {{ 'has-error' if errors.start_date }}">
+            <span class="label">Дата старта</span>
+            <input class="input" type="date" name="start_date" value="{{ form.start_date }}" {% if not t %}min="{{ today }}"{% endif %} required>
+            {{ m.field_error(errors, 'start_date') }}
+          </label>
+          <label class="field">
+            <span class="label">Время</span>
+            <input class="input" type="time" name="start_time" value="{{ form.start_time }}">
+          </label>
+        </div>
+        <div class="field">
+          <span class="label">Формат</span>
+          <div class="segmented segmented-lg">
+            <input type="radio" name="format" id="format-online" value="online" {{ 'checked' if form.format == 'online' }} data-format>
+            <label for="format-online">{{ icon('globe', 16) }} Онлайн</label>
+            <input type="radio" name="format" id="format-offline" value="offline" {{ 'checked' if form.format == 'offline' }} data-format>
+            <label for="format-offline">{{ icon('pin', 16) }} Офлайн</label>
+          </div>
+        </div>
+        <label class="field {{ 'has-error' if errors.city }}" data-city-field {{ 'hidden' if form.format != 'offline' }}>
+          <span class="label">Город и площадка</span>
+          <span class="input-icon">{{ icon('pin', 17) }}<input class="input" name="city" value="{{ form.city }}" maxlength="80" placeholder="Алматы, Esports Arena"></span>
+          {{ m.field_error(errors, 'city') }}
+        </label>
+      </div>
+
+      <div class="card card-pad">
+        <div class="step-title"><span class="step-n">3</span><h3>Участники</h3></div>
+        <div class="form-row">
+          <label class="field {{ 'has-error' if errors.max_teams }}">
+            <span class="label">Максимум команд</span>
+            <input class="input" type="number" name="max_teams" value="{{ form.max_teams }}" min="2" max="256" required data-calc-teams>
+            {{ m.field_error(errors, 'max_teams') }}
+          </label>
+          <label class="field {{ 'has-error' if errors.team_size }}">
+            <span class="label">Игроков в команде</span>
+            <input class="input" type="number" name="team_size" value="{{ form.team_size }}" min="1" max="12" required>
+            {{ m.field_error(errors, 'team_size') }}
+          </label>
+        </div>
+      </div>
+
+      <div class="card card-pad">
+        <div class="step-title"><span class="step-n">4</span><h3>Стоимость участия</h3></div>
+        <div class="segmented segmented-lg segmented-wide">
+          <input type="radio" name="is_paid" id="paid-0" value="0" {{ 'checked' if form.is_paid == '0' }} data-paid>
+          <label for="paid-0">{{ icon('gift', 16) }} Бесплатный</label>
+          <input type="radio" name="is_paid" id="paid-1" value="1" {{ 'checked' if form.is_paid == '1' }} data-paid>
+          <label for="paid-1">{{ icon('coins', 16) }} Платный</label>
+        </div>
+
+        <div class="paid-fields" data-paid-fields {{ 'hidden' if form.is_paid != '1' }}>
+          <div class="form-row">
+            <label class="field {{ 'has-error' if errors.entry_fee }}">
+              <span class="label">Взнос с команды, {{ CURRENCY }}</span>
+              <span class="input-icon">{{ icon('coins', 17) }}<input class="input" type="number" name="entry_fee" value="{{ form.entry_fee }}" min="100" step="100" placeholder="5000" data-calc-fee></span>
+              {{ m.field_error(errors, 'entry_fee') }}
+            </label>
+            <label class="field {{ 'has-error' if errors.card_number }}">
+              <span class="label">Номер карты для приёма взносов</span>
+              <span class="input-icon">{{ icon('card', 17) }}<input class="input mono" name="card_number" value="{{ form.card_number }}" inputmode="numeric" autocomplete="off" maxlength="23" placeholder="0000 0000 0000 0000" data-card-input></span>
+              {{ m.field_error(errors, 'card_number') }}
+            </label>
+          </div>
+
+          <div class="field {{ 'has-error' if errors.prize_percent }}">
+            <div class="range-head">
+              <span class="label">Сколько взносов отдать в призовой фонд</span>
+              <b class="range-value"><output data-prize-out>{{ form.prize_percent }}</output>%</b>
+            </div>
+            <input class="range range-prize" type="range" name="prize_percent" min="0" max="{{ max_prize }}" step="5" value="{{ form.prize_percent }}" data-prize-range>
+            <div class="range-scale"><span>0%</span><span>Остальное — вам. {{ PLATFORM_FEE }}% всегда уходит платформе</span><span>{{ max_prize }}%</span></div>
+            {{ m.field_error(errors, 'prize_percent') }}
+          </div>
+        </div>
+
+        <label class="field {{ 'has-error' if errors.prize_note }}">
+          <span class="label">Призы от спонсоров <em class="muted">(необязательно)</em></span>
+          <span class="input-icon">{{ icon('gift', 17) }}<input class="input" name="prize_note" value="{{ form.prize_note }}" maxlength="200" placeholder="Девайсы, мерч, подписки…"></span>
+          {{ m.field_error(errors, 'prize_note') }}
+        </label>
+      </div>
+    </div>
+
+    <aside class="form-side">
+      <div class="side-sticky">
+        <div class="card preview-card">
+          <div class="t-cover t-cover-preview" data-preview-cover>
+            <span class="t-cover-abbr" data-preview-abbr>?</span>
+            <span class="t-cover-badges">
+              <span class="badge badge-registration"><i class="dot"></i>Регистрация</span>
+              <span class="badge" data-preview-price></span>
+            </span>
+            <span class="t-cover-game">{{ icon('gamepad', 14) }} <span data-preview-game>Игра</span></span>
+          </div>
+          <div class="t-body">
+            <h3 class="t-title" data-preview-title>Название турнира</h3>
+            <small class="muted">Так турнир будет выглядеть в каталоге</small>
+          </div>
+        </div>
+
+        <div class="card card-pad" data-paid-fields {{ 'hidden' if form.is_paid != '1' }}>
+          <div class="bank-card bank-card-sm" data-bank-card>
+            <div class="bank-card-top">
+              <span class="bank-chip"></span>
+              <span class="bank-brand" data-card-brand>CARD</span>
+            </div>
+            <div class="bank-number" data-card-preview>•••• •••• •••• ••••</div>
+            <div class="bank-card-bottom">
+              <div><small>Получатель</small><b>{{ g.user.full_name }}</b></div>
+              <div class="text-right"><small>Статус</small><b data-card-status>—</b></div>
+            </div>
+          </div>
+
+          <h4 class="split-title">При полном составе</h4>
+          <div class="calc-total"><small>Общая выручка</small><b data-out="total">0</b></div>
+          <div class="stack-bar">
+            <span class="seg-prize" data-seg="prize"></span>
+            <span class="seg-org" data-seg="organizer"></span>
+            <span class="seg-platform" data-seg="platform"></span>
+          </div>
+          <ul class="legend legend-compact">
+            <li><i class="sw sw-prize"></i><span>Призовой фонд</span><em data-pct="prize"></em><b data-out="prize"></b></li>
+            <li class="is-hl"><i class="sw sw-org"></i><span>Ваш доход</span><em data-pct="organizer"></em><b data-out="organizer"></b></li>
+            <li><i class="sw sw-platform"></i><span>Платформе</span><em data-pct="platform"></em><b data-out="platform"></b></li>
+          </ul>
+        </div>
+
+        <button class="btn btn-primary btn-lg btn-block" type="submit">
+          {% if t %}{{ icon('save', 18) }} Сохранить изменения{% else %}{{ icon('sparkles', 18) }} Создать турнир{% endif %}
+        </button>
+      </div>
+    </aside>
+  </form>
+  <script type="application/json" id="game-styles">{{ game_styles|tojson }}</script>
+</section>
+{% endblock %}

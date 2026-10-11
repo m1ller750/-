@@ -1,0 +1,171 @@
+{% macro status_badge(t) -%}
+  <span class="badge badge-{{ t.status }}">{% if t.status != 'finished' %}<i class="dot"></i>{% endif %}{{ t.status_label }}</span>
+{%- endmacro %}
+
+{% macro price_badge(t) -%}
+  {% if t.is_paid %}
+    <span class="badge badge-paid">{{ icon('coins', 13) }}{{ t.entry_fee|money }}</span>
+  {% else %}
+    <span class="badge badge-free">{{ icon('gift', 13) }}Бесплатно</span>
+  {% endif %}
+{%- endmacro %}
+
+{% macro game_tile(t, size='md') -%}
+  <span class="game-tile game-tile-{{ size }}" style="--c1: {{ t.style.c1 }}; --c2: {{ t.style.c2 }}">{{ t.style.abbr }}</span>
+{%- endmacro %}
+
+{% macro tournament_card(t, joined=False) -%}
+  <article class="card t-card reveal">
+    <a class="t-cover" href="{{ url_for('main.detail', tid=t.id) }}" style="--c1: {{ t.style.c1 }}; --c2: {{ t.style.c2 }}" tabindex="-1" aria-hidden="true">
+      <span class="t-cover-abbr">{{ t.style.abbr }}</span>
+      <span class="t-cover-badges">{{ status_badge(t) }}{{ price_badge(t) }}</span>
+      {% if joined %}<span class="t-cover-joined">{{ icon('check', 14) }} Вы участвуете</span>{% endif %}
+      <span class="t-cover-game">{{ icon('gamepad', 14) }} {{ t.game }}</span>
+    </a>
+    <div class="t-body">
+      <h3 class="t-title"><a href="{{ url_for('main.detail', tid=t.id) }}">{{ t.title }}</a></h3>
+      <div class="t-meta">
+        <span>{{ icon('calendar', 15) }} {{ t.start_at|ru_date(True, True) }}</span>
+        {% if t.format == 'offline' %}
+          <span>{{ icon('pin', 15) }} {{ t.city }}</span>
+        {% else %}
+          <span>{{ icon('globe', 15) }} Онлайн</span>
+        {% endif %}
+        <span>{{ icon('users', 15) }} {{ t.team_size }}×{{ t.team_size }}</span>
+      </div>
+      <div class="t-progress">
+        <div class="t-progress-head">
+          <span>Команды</span>
+          <b>{{ t.team_count }}<small> / {{ t.max_teams }}</small></b>
+        </div>
+        <div class="progress"><span style="width: {{ t.fill_percent }}%"></span></div>
+      </div>
+      <div class="t-foot">
+        <div class="t-prize">
+          {% if t.is_paid %}
+            <small>Призовой фонд до</small>
+            <b class="grad-text">{{ t.finance.potential.prize|money }}</b>
+          {% elif t.prize_note %}
+            <small>Призы</small>
+            <b class="t-prize-note" title="{{ t.prize_note }}">{{ t.prize_note }}</b>
+          {% else %}
+            <small>Организатор</small>
+            <b>{{ t.organizer_name }}</b>
+          {% endif %}
+        </div>
+        <a class="btn btn-sm {{ 'btn-primary' if t.is_open and not joined else 'btn-ghost' }}" href="{{ url_for('main.detail', tid=t.id) }}">
+          {{ 'Участвовать' if t.is_open and not joined else 'Открыть' }} {{ icon('arrow', 15) }}
+        </a>
+      </div>
+    </div>
+  </article>
+{%- endmacro %}
+
+{% macro place_badge(place) -%}
+  <span class="place place-{{ place if place <= 3 else 'n' }}">
+    {%- if place == 1 %}{{ icon('crown', 16) }}{% else %}{{ place }}{% endif -%}
+  </span>
+{%- endmacro %}
+
+{% macro team_cell(team) -%}
+  <div class="team-cell">
+    <span class="team-avatar" style="--h: {{ team.hue }}">{{ team.initials }}</span>
+    <div class="team-name">
+      <b>{{ team.name }}</b>
+      {% if team.member_list %}<small>{{ team.member_list|join(' · ') }}</small>{% endif %}
+    </div>
+  </div>
+{%- endmacro %}
+
+{% macro standings_table(t, teams, highlight_id=None) -%}
+  {% if teams %}
+    <div class="table-wrap">
+      <table class="standings">
+        <thead>
+          <tr>
+            <th class="num">#</th>
+            <th>Команда</th>
+            <th class="num" title="Сыграно матчей">И</th>
+            <th class="num" title="Победы">В</th>
+            <th class="num" title="Ничьи">Н</th>
+            <th class="num" title="Поражения">П</th>
+            <th class="num" title="Счёт: забито — пропущено">Счёт</th>
+            <th class="num" title="Разница">±</th>
+            <th class="num">Очки</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for team in teams %}
+            <tr class="{{ 'is-mine' if highlight_id and team.id == highlight_id }} {{ 'top-' ~ team.place if team.place <= 3 and team.played }}">
+              <td class="num">{{ place_badge(team.place) }}</td>
+              <td>
+                {{ team_cell(team) }}
+                {% if highlight_id and team.id == highlight_id %}<span class="mine-tag">Ваша команда</span>{% endif %}
+              </td>
+              <td class="num muted">{{ team.played }}</td>
+              <td class="num win">{{ team.wins }}</td>
+              <td class="num">{{ team.draws }}</td>
+              <td class="num loss">{{ team.losses }}</td>
+              <td class="num muted nowrap">{{ team.score_for }}:{{ team.score_against }}</td>
+              <td class="num {{ 'diff-pos' if team.diff > 0 else 'diff-neg' if team.diff < 0 }}">{{ '+' if team.diff > 0 }}{{ team.diff }}</td>
+              <td class="num"><span class="pts">{{ team.points }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    {{ empty_state('users', 'Пока нет команд', 'Таблица появится, как только зарегистрируется первая команда.') }}
+  {% endif %}
+{%- endmacro %}
+
+{% macro empty_state(ic, title, text, action_url=None, action_label=None) -%}
+  <div class="empty">
+    <div class="empty-icon">{{ icon(ic, 30) }}</div>
+    <h3>{{ title }}</h3>
+    <p>{{ text }}</p>
+    {% if action_url %}<a class="btn btn-primary" href="{{ action_url }}">{{ icon('plus', 16) }} {{ action_label }}</a>{% endif %}
+  </div>
+{%- endmacro %}
+
+{% macro kpi(ic, label, value, hint=None, tone='violet', count=None) -%}
+  <div class="card kpi kpi-{{ tone }} reveal">
+    <div class="kpi-top">
+      <span class="kpi-icon">{{ icon(ic, 20) }}</span>
+      <span class="kpi-label">{{ label }}</span>
+    </div>
+    <div class="kpi-value"{% if count is not none %} data-count="{{ count }}"{% endif %}>{{ value }}</div>
+    {% if hint %}<div class="kpi-hint">{{ hint }}</div>{% endif %}
+  </div>
+{%- endmacro %}
+
+{% macro donut(split, center_label='Всего', size=190) -%}
+  <div class="donut {{ 'donut-empty' if not split.total }}" style="--size: {{ size }}px; --p1: {{ split.prize_percent }}; --p2: {{ split.organizer_percent }}">
+    <div class="donut-center">
+      <small>{{ center_label }}</small>
+      <b>{{ split.total|money }}</b>
+    </div>
+  </div>
+{%- endmacro %}
+
+{% macro split_legend(split, highlight=None) -%}
+  <ul class="legend">
+    <li class="{{ 'is-hl' if highlight == 'prize' }}">
+      <i class="sw sw-prize"></i><span>Призовой фонд</span><em>{{ split.prize_percent }}%</em><b>{{ split.prize|money }}</b>
+    </li>
+    <li class="{{ 'is-hl' if highlight == 'organizer' }}">
+      <i class="sw sw-org"></i><span>Организатору</span><em>{{ split.organizer_percent }}%</em><b>{{ split.organizer|money }}</b>
+    </li>
+    <li class="{{ 'is-hl' if highlight == 'platform' }}">
+      <i class="sw sw-platform"></i><span>Платформе</span><em>{{ split.platform_percent }}%</em><b>{{ split.platform|money }}</b>
+    </li>
+  </ul>
+{%- endmacro %}
+
+{% macro field_error(errors, name) -%}
+  {% if errors.get(name) %}<span class="field-error">{{ icon('alert', 13) }} {{ errors[name] }}</span>{% endif %}
+{%- endmacro %}
+
+{% macro csrf() -%}
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+{%- endmacro %}

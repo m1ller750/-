@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m with context %}
+{% block title %}Регистрация{% endblock %}
+
+{% block content %}
+<section class="container auth-wrap">
+  <aside class="auth-art">
+    <div class="auth-art-inner">
+      <span class="eyebrow eyebrow-light">{{ icon('sparkles', 14) }} Добро пожаловать</span>
+      <h1>Ваш путь<br>к <span class="grad-text">победе</span><br>начинается здесь</h1>
+      <p>Одна учётная запись — и вы в игре: создавайте турниры или собирайте команду и сражайтесь за призовой фонд.</p>
+      <div class="auth-art-stats">
+        <div><b>2 мин</b><small>на создание турнира</small></div>
+        <div><b>{{ PLATFORM_FEE }}%</b><small>комиссия с платных</small></div>
+        <div><b>0 {{ CURRENCY }}</b><small>за бесплатные</small></div>
+      </div>
+    </div>
+    <div class="auth-art-glow"></div>
+  </aside>
+
+  <div class="card auth-card">
+    <h2>Создать аккаунт</h2>
+    <p class="muted">Уже зарегистрированы? <a class="link" href="{{ url_for('auth.login') }}">Войти</a></p>
+
+    <form method="post" novalidate class="form">
+      {{ m.csrf() }}
+      <fieldset class="role-picker">
+        <legend class="label">Кто вы?</legend>
+        <input type="radio" name="role" id="role-organizer" value="organizer" {{ 'checked' if role == 'organizer' }}>
+        <label for="role-organizer" class="role-option">
+          <span class="role-option-icon role-org">{{ icon('trophy', 22) }}</span>
+          <span><b>Организатор</b><small>Создаю турниры, веду таблицы, получаю доход</small></span>
+          <span class="role-check">{{ icon('check', 14) }}</span>
+        </label>
+        <input type="radio" name="role" id="role-participant" value="participant" {{ 'checked' if role == 'participant' }}>
+        <label for="role-participant" class="role-option">
+          <span class="role-option-icon role-player">{{ icon('swords', 22) }}</span>
+          <span><b>Участник</b><small>Ищу турниры, регистрирую команду, побеждаю</small></span>
+          <span class="role-check">{{ icon('check', 14) }}</span>
+        </label>
+      </fieldset>
+
+      <div class="form-row">
+        <label class="field {{ 'has-error' if errors.username }}">
+          <span class="label">Логин</span>
+          <span class="input-icon">{{ icon('user', 17) }}<input class="input" name="username" value="{{ form.username }}" autocomplete="username" placeholder="nomad_kz" required></span>
+          {{ m.field_error(errors, 'username') }}
+        </label>
+        <label class="field {{ 'has-error' if errors.full_name }}">
+          <span class="label">Имя или название</span>
+          <span class="input-icon">{{ icon('sparkles', 17) }}<input class="input" name="full_name" value="{{ form.full_name }}" autocomplete="name" placeholder="Алихан Нурланов" required></span>
+          {{ m.field_error(errors, 'full_name') }}
+        </label>
+      </div>
+
+      <label class="field {{ 'has-error' if errors.email }}">
+        <span class="label">E-mail</span>
+        <span class="input-icon">{{ icon('mail', 17) }}<input class="input" type="email" name="email" value="{{ form.email }}" autocomplete="email" placeholder="you@example.com" required></span>
+        {{ m.field_error(errors, 'email') }}
+      </label>
+
+      <div class="form-row">
+        <label class="field {{ 'has-error' if errors.password }}">
+          <span class="label">Пароль</span>
+          <span class="input-icon">{{ icon('lock', 17) }}<input class="input" type="password" name="password" autocomplete="new-password" placeholder="Минимум 6 символов" required></span>
+          {{ m.field_error(errors, 'password') }}
+        </label>
+        <label class="field {{ 'has-error' if errors.password2 }}">
+          <span class="label">Повторите пароль</span>
+          <span class="input-icon">{{ icon('lock', 17) }}<input class="input" type="password" name="password2" autocomplete="new-password" placeholder="Ещё раз" required></span>
+          {{ m.field_error(errors, 'password2') }}
+        </label>
+      </div>
+
+      <button class="btn btn-primary btn-lg btn-block" type="submit">Зарегистрироваться {{ icon('arrow', 18) }}</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

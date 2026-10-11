@@ -1,0 +1,210 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m with context %}
+{% block title %}Турниры, которые собирают чемпионов{% endblock %}
+{% block body_class %}home{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="container hero-grid">
+    <div class="hero-copy">
+      <span class="eyebrow">{{ icon('sparkles', 14) }} Платформа турниров нового поколения</span>
+      <h1 class="hero-title">Турниры, которые <span class="grad-text grad-anim">собирают чемпионов</span></h1>
+      <p class="hero-lead">
+        Создавайте платные и бесплатные турниры за пару минут, ведите турнирные таблицы в реальном времени
+        и прозрачно делите призовой фонд. Игроки находят соревнования по душе с умными фильтрами.
+      </p>
+      <div class="hero-actions">
+        {% if g.user %}
+          {% if g.user.role == 'organizer' %}
+            <a class="btn btn-primary btn-lg" href="{{ url_for('organizer.create') }}">{{ icon('plus', 18) }} Создать турнир</a>
+          {% elif g.user.role == 'creator' %}
+            <a class="btn btn-primary btn-lg" href="{{ url_for('creator.dashboard') }}">{{ icon('crown', 18) }} Панель создателя</a>
+          {% else %}
+            <a class="btn btn-primary btn-lg" href="{{ url_for('main.catalog', available=1) }}">{{ icon('swords', 18) }} Найти турнир</a>
+          {% endif %}
+          <a class="btn btn-ghost btn-lg" href="{{ url_for('main.catalog') }}">Каталог турниров {{ icon('arrow', 18) }}</a>
+        {% else %}
+          <a class="btn btn-primary btn-lg" href="{{ url_for('auth.register', role='organizer') }}">{{ icon('trophy', 18) }} Провести турнир</a>
+          <a class="btn btn-ghost btn-lg" href="{{ url_for('auth.register', role='participant') }}">{{ icon('swords', 18) }} Участвовать</a>
+        {% endif %}
+      </div>
+      <div class="hero-trust">
+        <div class="avatars">
+          {% for name in ['Алихан', 'Дана', 'Тимур', 'Мария', 'Арман'] %}
+            <span class="avatar" style="--h: {{ hue_of(name) }}">{{ name[:1] }}</span>
+          {% endfor %}
+        </div>
+        <span>Тысячи матчей. Одна платформа. <b>Ноль хаоса в таблицах.</b></span>
+      </div>
+    </div>
+
+    <div class="hero-visual" aria-hidden="true">
+      <div class="float-card hero-board">
+        <div class="board-head">
+          {% if showcase %}
+            {{ m.game_tile(showcase, 'sm') }}
+            <div>
+              <b>{{ showcase.title }}</b>
+              <small>{{ showcase.game }} · {{ showcase.status_label }}</small>
+            </div>
+            {% if showcase.status == 'active' %}<span class="live-pill"><i></i>LIVE</span>{% else %}{{ m.status_badge(showcase) }}{% endif %}
+          {% else %}
+            <span class="game-tile game-tile-sm" style="--c1: #f59e0b; --c2: #ef4444">CS2</span>
+            <div><b>Кубок Степи</b><small>Counter-Strike 2 · Идёт</small></div>
+            <span class="live-pill"><i></i>LIVE</span>
+          {% endif %}
+        </div>
+        <ol class="board-list">
+          {% if showcase_teams %}
+            {% for team in showcase_teams %}
+              <li>
+                {{ m.place_badge(team.place) }}
+                <span class="team-avatar" style="--h: {{ team.hue }}">{{ team.initials }}</span>
+                <span class="board-name">{{ team.name }}</span>
+                <span class="board-wl">{{ team.wins }}–{{ team.losses }}</span>
+                <b class="board-pts">{{ team.points }}</b>
+              </li>
+            {% endfor %}
+          {% else %}
+            {% for name, w, l, p in [('Steppe Wolves', 6, 1, 18), ('Nomad Five', 5, 2, 15), ('Astana Lions', 4, 3, 12), ('Qazaq Eagles', 3, 4, 9), ('Tengri Force', 2, 5, 6)] %}
+              <li>
+                {{ m.place_badge(loop.index) }}
+                <span class="team-avatar" style="--h: {{ hue_of(name) }}">{{ initials(name) }}</span>
+                <span class="board-name">{{ name }}</span>
+                <span class="board-wl">{{ w }}–{{ l }}</span>
+                <b class="board-pts">{{ p }}</b>
+              </li>
+            {% endfor %}
+          {% endif %}
+        </ol>
+      </div>
+
+      <div class="float-card hero-split">
+        <div class="mini-donut" style="--p1: 60; --p2: 30"></div>
+        <div>
+          <small>Распределение взносов</small>
+          <ul>
+            <li><i class="sw sw-prize"></i>Призы <b>60%</b></li>
+            <li><i class="sw sw-org"></i>Организатор <b>30%</b></li>
+            <li><i class="sw sw-platform"></i>Платформа <b>{{ PLATFORM_FEE }}%</b></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="float-card hero-card-mini">
+        <span class="kpi-icon">{{ icon('trophy', 18) }}</span>
+        <div><small>Призовой фонд</small><b>{{ (stats.prize or 1250000)|money }}</b></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="container stats-strip reveal">
+  <div class="stat"><b data-count="{{ stats.tournaments }}">{{ stats.tournaments }}</b><span>{{ stats.tournaments|plural_word('турнир', 'турнира', 'турниров') }} на платформе</span></div>
+  <div class="stat"><b data-count="{{ stats.teams }}">{{ stats.teams }}</b><span>{{ stats.teams|plural_word('команда', 'команды', 'команд') }} участвуют</span></div>
+  <div class="stat"><b data-count="{{ stats.players }}">{{ stats.players }}</b><span>{{ stats.players|plural_word('игрок', 'игрока', 'игроков') }} с аккаунтом</span></div>
+  <div class="stat"><b>{{ stats.prize|money }}</b><span>собрано в призовые фонды</span></div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head section-head-row">
+      <div>
+        <span class="eyebrow">{{ icon('zap', 14) }} Открыта регистрация</span>
+        <h2>Свежие турниры</h2>
+        <p>Выбирайте дисциплину, собирайте команду и забирайте призовой фонд.</p>
+      </div>
+      <a class="btn btn-ghost" href="{{ url_for('main.catalog') }}">Все турниры {{ icon('arrow', 16) }}</a>
+    </div>
+    {% if featured %}
+      <div class="t-grid">
+        {% for t in featured %}{{ m.tournament_card(t) }}{% endfor %}
+      </div>
+    {% else %}
+      {{ m.empty_state('trophy', 'Турниров пока нет', 'Станьте первым организатором на платформе — это займёт пару минут.',
+                       url_for('auth.register', role='organizer'), 'Создать турнир') }}
+    {% endif %}
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <span class="eyebrow">{{ icon('users', 14) }} Две роли — одна платформа</span>
+      <h2>Кто вы сегодня?</h2>
+      <p>При регистрации выберите роль — и получите кабинет, заточенный под ваши задачи.</p>
+    </div>
+    <div class="roles-grid">
+      <article class="card role-card role-card-org reveal">
+        <div class="role-card-icon">{{ icon('trophy', 28) }}</div>
+        <h3>Организатор</h3>
+        <p>Проводите турниры и зарабатывайте на них.</p>
+        <ul class="check-list">
+          <li>{{ icon('check', 16) }} Платные и бесплатные турниры</li>
+          <li>{{ icon('check', 16) }} Приём взносов на вашу карту</li>
+          <li>{{ icon('check', 16) }} Редактируемые турнирные таблицы</li>
+          <li>{{ icon('check', 16) }} Бизнес-модель и аналитика дохода</li>
+        </ul>
+        {% if not g.user %}<a class="btn btn-primary btn-block" href="{{ url_for('auth.register', role='organizer') }}">Стать организатором {{ icon('arrow', 16) }}</a>{% endif %}
+      </article>
+      <article class="card role-card role-card-player reveal">
+        <div class="role-card-icon">{{ icon('swords', 28) }}</div>
+        <h3>Участник</h3>
+        <p>Находите турниры и сражайтесь за призы.</p>
+        <ul class="check-list">
+          <li>{{ icon('check', 16) }} Каталог с умными фильтрами</li>
+          <li>{{ icon('check', 16) }} Регистрация команды в один клик</li>
+          <li>{{ icon('check', 16) }} Турнирные таблицы ваших турниров</li>
+          <li>{{ icon('check', 16) }} Прозрачный призовой фонд</li>
+        </ul>
+        {% if not g.user %}<a class="btn btn-cyan btn-block" href="{{ url_for('auth.register', role='participant') }}">Начать играть {{ icon('arrow', 16) }}</a>{% endif %}
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="card model-teaser reveal">
+      <div class="model-teaser-copy">
+        <span class="eyebrow">{{ icon('pie', 14) }} Честная экономика</span>
+        <h2>Каждый взнос работает на турнир</h2>
+        <p>
+          Организатор сам решает, какая часть взносов уходит в призовой фонд, а какая — ему.
+          Платформа берёт фиксированные <b>{{ PLATFORM_FEE }}%</b> только с платных турниров. Бесплатные — всегда бесплатно.
+        </p>
+        <div class="model-steps">
+          <div><span class="step-n">1</span><b>Взнос</b><small>Команда переводит взнос на карту организатора</small></div>
+          <div><span class="step-n">2</span><b>Подтверждение</b><small>Организатор отмечает оплату в таблице</small></div>
+          <div><span class="step-n">3</span><b>Распределение</b><small>Призы, доход организатора и {{ PLATFORM_FEE }}% платформе</small></div>
+        </div>
+      </div>
+      <div class="model-teaser-visual">
+        <div class="donut" style="--size: 260px; --p1: 60; --p2: 30">
+          <div class="donut-center"><small>Пример: 16 команд × {{ 5000|money }}</small><b>{{ 80000|money }}</b></div>
+        </div>
+        <ul class="legend legend-compact">
+          <li><i class="sw sw-prize"></i><span>Призовой фонд</span><em>60%</em><b>{{ 48000|money }}</b></li>
+          <li><i class="sw sw-org"></i><span>Организатору</span><em>30%</em><b>{{ 24000|money }}</b></li>
+          <li><i class="sw sw-platform"></i><span>Платформе</span><em>{{ PLATFORM_FEE }}%</em><b>{{ 8000|money }}</b></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% if not g.user %}
+<section class="section section-cta">
+  <div class="container">
+    <div class="cta-box reveal">
+      <h2>Готовы к первому турниру?</h2>
+      <p>Регистрация бесплатна и занимает меньше минуты.</p>
+      <div class="hero-actions hero-actions-center">
+        <a class="btn btn-light btn-lg" href="{{ url_for('auth.register') }}">Создать аккаунт {{ icon('arrow', 18) }}</a>
+        <a class="btn btn-outline-light btn-lg" href="{{ url_for('auth.login') }}">У меня есть аккаунт</a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

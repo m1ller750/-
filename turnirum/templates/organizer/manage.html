@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+{% import 'macros.html' as m with context %}
+{% block title %}Мои турниры{% endblock %}
+
+{% block content %}
+<section class="container">
+  <div class="page-head">
+    <div>
+      <span class="eyebrow">{{ icon('table', 14) }} Кабинет организатора</span>
+      <h1>Мои турниры</h1>
+      <p class="muted">Выберите турнир, чтобы редактировать таблицу команд, подтверждать оплату и менять статус.</p>
+    </div>
+    <a class="btn btn-primary" href="{{ url_for('organizer.create') }}">{{ icon('plus', 16) }} Новый турнир</a>
+  </div>
+
+  {% if not tournaments %}
+    {{ m.empty_state('trophy', 'У вас ещё нет турниров', 'Создайте первый турнир — он сразу появится в каталоге, а здесь вы будете вести таблицу.',
+                     url_for('organizer.create'), 'Создать первый турнир') }}
+  {% else %}
+  <div class="split">
+    <aside class="side-list card">
+      <div class="side-list-head">
+        <span class="label">Турниры</span>
+        <span class="count-pill">{{ tournaments|length }}</span>
+      </div>
+      <nav>
+        {% for item in tournaments %}
+          <a href="{{ url_for('organizer.manage', id=item.id) }}" class="side-item {{ 'active' if item.id == t.id }}">
+            {{ m.game_tile(item, 'sm') }}
+            <span class="side-item-text">
+              <b>{{ item.title }}</b>
+              <small><i class="status-dot status-{{ item.status }}"></i>{{ item.status_label }} · {{ item.team_count }}/{{ item.max_teams }}</small>
+            </span>
+            {% if item.finance.pending_teams %}<span class="side-alert" title="Ожидают подтверждения оплаты">{{ item.finance.pending_teams }}</span>{% endif %}
+          </a>
+        {% endfor %}
+      </nav>
+    </aside>
+
+    <div class="split-main">
+      <div class="card manage-head" style="--c1: {{ t.style.c1 }}; --c2: {{ t.style.c2 }}">
+        <div class="manage-head-top">
+          {{ m.game_tile(t, 'lg') }}
+          <div class="manage-head-title">
+            <div class="t-hero-badges">{{ m.status_badge(t) }}{{ m.price_badge(t) }}</div>
+            <h2>{{ t.title }}</h2>
+            <div class="t-meta">
+              <span>{{ icon('gamepad', 15) }} {{ t.game }}</span>
+              <span>{{ icon('calendar', 15) }} {{ t.start_at|ru_date(True) }}</span>
+              <span>{% if t.format == 'offline' %}{{ icon('pin', 15) }} {{ t.city }}{% else %}{{ icon('globe', 15) }} Онлайн{% endif %}</span>
+            </div>
+          </div>
+          <div class="manage-head-actions">
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('main.detail', tid=t.id) }}">{{ icon('eye', 15) }} Страница</a>
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('organizer.edit', tid=t.id) }}">{{ icon('edit', 15) }} Настройки</a>
+          </div>
+        </div>
+
+        <form method="post" action="{{ url_for('organizer.set_status', tid=t.id) }}" class="status-switch">
+          {{ m.csrf() }}
+          <span class="label">Статус турнира</span>
+          <div class="segmented">
+            {% for value, label, ic in [('registration', 'Регистрация', 'door'), ('active', 'Идёт', 'play'), ('finished', 'Завершён', 'flag')] %}
+              <button type="submit" name="status" value="{{ value }}" class="seg-btn {{ 'is-on' if t.status == value }}">{{ icon(ic, 14) }} {{ label }}</button>
+            {% endfor %}
+          </div>
+        </form>
+      </div>
+
+      <div class="kpis kpis-4">
+        {{ m.kpi('users', 'Команды', t.team_count ~ ' / ' ~ t.max_teams, t.slots_left|plural('свободное место', 'свободных места', 'свободных мест'), 'violet') }}
+        {% if t.is_paid %}
+          {{ m.kpi('check', 'Оплатили', t.paid_count ~ ' из ' ~ t.team_count, ('ждут подтверждения: ' ~ t.finance.pending_teams) if t.finance.pending_teams else 'все взносы подтверждены', 'green') }}
+          {{ m.kpi('trophy', 'Призовой фонд', t.finance.collected.prize|money, 'до ' ~ t.finance.potential.prize|money ~ ' при полном составе', 'amber') }}
+          {{ m.kpi('wallet', 'Ваш доход', t.finance.collected.organizer|money, 'платформе: ' ~ t.finance.collected.platform|money, 'cyan') }}
+        {% else %}
+          {{ m.kpi('gift', 'Участие', 'Бесплатно', t.prize_note or 'без взноса', 'green') }}
+          {{ m.kpi('calendar', 'Старт', t.start_at|ru_date(False, True), t.start_at|countdown, 'amber') }}
+          {{ m.kpi('user', 'Капитанов', teams|selectattr('captain_id')|list|length, 'зарегистрировались сами', 'cyan') }}
+        {% endif %}
+      </div>
+
+      {% if t.is_paid %}
+        <div class="card pay-strip">
+          <span class="kpi-icon">{{ icon('card', 18) }}</span>
+          <div><small>Карта для взносов</small><b class="mono">{{ brand }} {{ t.card_number|mask_card }}</b></div>
+          <div><small>Взнос</small><b>{{ t.entry_fee|money }}</b></div>
+          <div><small>Распределение</small><b>{{ t.prize_percent }}% призы · {{ t.finance.collected.organizer_percent }}% вам · {{ PLATFORM_FEE }}% платформе</b></div>
+          <a class="btn btn-ghost btn-sm" href="{{ url_for('organizer.business') }}">{{ icon('pie', 15) }} Бизнес-модель</a>
+        </div>
+      {% endif %}
+
+      <div class="card card-pad" id="table">
+        <div class="card-head">
+          <h3 class="card-title">{{ icon('table', 18) }} Таблица команд</h3>
+          {% if teams %}
+            <div class="table-tools">
+              <label class="switch switch-sm">
+                <input type="checkbox" name="auto_points" value="1" form="table-form" checked data-auto-points>
+                <span class="track"></span>
+                <span>Авторасчёт очков (В×3 + Н)</span>
+              </label>
+              <button class="btn btn-primary btn-sm" type="submit" form="table-form">{{ icon('save', 15) }} Сохранить таблицу</button>
+            </div>
+          {% endif %}
+        </div>
+
+        {% if teams %}
+          <form method="post" action="{{ url_for('organizer.save_table', tid=t.id) }}" id="table-form" data-table-form>
+            {{ m.csrf() }}
+            <div class="table-wrap">
+              <table class="standings standings-edit">
+                <thead>
+                  <tr>
+                    <th class="num">#</th>
+                    <th>Команда и состав</th>
+                    <th class="num" title="Победы">В</th>
+                    <th class="num" title="Ничьи">Н</th>
+                    <th class="num" title="Поражения">П</th>
+                    <th class="num" title="Забито">Заб.</th>
+                    <th class="num" title="Пропущено">Проп.</th>
+                    <th class="num">Очки</th>
+                    {% if t.is_paid %}<th class="num">Оплата</th>{% endif %}
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for team in teams %}
+                    {% set p = 't' ~ team.id ~ '_' %}
+                    <tr data-row>
+                      <td class="num">{{ m.place_badge(team.place) }}</td>
+                      <td class="team-edit">
+                        <input class="cell-input cell-name" name="{{ p }}name" value="{{ team.name }}" maxlength="40" aria-label="Название команды">
+                        <input class="cell-input cell-members" name="{{ p }}members" value="{{ team.member_list|join(', ') }}" placeholder="Игроки через запятую" aria-label="Состав">
+                        {% if team.captain_name %}<small class="captain">{{ icon('crown', 12) }} {{ team.captain_name }}</small>{% endif %}
+                      </td>
+                      {% for field in ['wins', 'draws', 'losses', 'score_for', 'score_against'] %}
+                        <td class="num"><input class="cell-input cell-num" type="number" min="0" max="99999" name="{{ p }}{{ field }}" value="{{ team[field] }}" data-stat="{{ field }}" aria-label="{{ field }}"></td>
+                      {% endfor %}
+                      <td class="num"><input class="cell-input cell-num cell-pts" type="number" min="0" max="99999" name="{{ p }}points" value="{{ team.points }}" data-stat="points" aria-label="Очки"></td>
+                      {% if t.is_paid %}
+                        <td class="num">
+                          <label class="switch switch-sm" title="{{ team.payment_note or 'Отметка об оплате' }}">
+                            <input type="checkbox" name="{{ p }}is_paid" value="1" {{ 'checked' if team.is_paid }}>
+                            <span class="track"></span>
+                          </label>
+                          {% if team.payment_note %}<small class="pay-note" title="{{ team.payment_note }}">{{ team.payment_note }}</small>{% endif %}
+                        </td>
+                      {% endif %}
+                      <td class="num">
+                        <button class="icon-btn icon-btn-danger" type="submit" form="del-{{ team.id }}" title="Удалить команду" aria-label="Удалить команду">{{ icon('trash', 16) }}</button>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div class="table-foot">
+              <span class="muted small">{{ icon('info', 14) }} Места пересчитываются автоматически: очки → разница → забито → победы.</span>
+              <button class="btn btn-primary" type="submit">{{ icon('save', 16) }} Сохранить таблицу</button>
+            </div>
+          </form>
+          {% for team in teams %}
+            <form method="post" action="{{ url_for('organizer.delete_team', tid=t.id, team_id=team.id) }}" id="del-{{ team.id }}" hidden
+                  data-confirm="Команда «{{ team.name }}» и её результаты будут удалены из турнира." data-confirm-title="Удалить команду?">
+              {{ m.csrf() }}
+            </form>
+          {% endfor %}
+        {% else %}
+          {{ m.empty_state('users', 'Команд пока нет', 'Поделитесь ссылкой на турнир или добавьте команды вручную ниже.') }}
+        {% endif %}
+      </div>
+
+      <div class="card card-pad">
+        <h3 class="card-title">{{ icon('plus', 18) }} Добавить команду вручную</h3>
+        {% if t.slots_left > 0 %}
+          <form method="post" action="{{ url_for('organizer.add_team', tid=t.id) }}" class="add-team">
+            {{ m.csrf() }}
+            <input class="input" name="name" maxlength="40" placeholder="Название команды" required>
+            <input class="input" name="members" placeholder="Игроки через запятую (до {{ t.team_size }})">
+            {% if t.is_paid %}
+              <label class="switch switch-sm">
+                <input type="checkbox" name="is_paid" value="1">
+                <span class="track"></span>
+                <span>Оплачено</span>
+              </label>
+            {% endif %}
+            <button class="btn btn-primary" type="submit">{{ icon('plus', 16) }} Добавить</button>
+          </form>
+        {% else %}
+          <div class="hint">{{ icon('info', 16) }} <span>Все места заняты ({{ t.max_teams }}). Увеличьте лимит в <a class="link" href="{{ url_for('organizer.edit', tid=t.id) }}">настройках турнира</a>.</span></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
