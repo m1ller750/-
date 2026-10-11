@@ -5,6 +5,9 @@ on:
     branches: [claude/turnirum-tournament-platform-bq6cmd, main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -24,3 +27,14 @@ jobs:
         with:
           name: TurniRUM-windows
           path: dist/TurniRUM.exe
+      - name: Commit exe to branch
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          mkdir -p release
+          cp dist/TurniRUM.exe release/TurniRUM.exe
+          git add -f release/TurniRUM.exe
+          git commit -m "Build TurniRUM.exe [skip ci]" || exit 0
+          git push
