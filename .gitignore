@@ -6,3 +6,7 @@ instance/
 .pytest_cache/
 *.sqlite3
 *.zip
+build/
+dist/
+*.spec
+turnirum_data/

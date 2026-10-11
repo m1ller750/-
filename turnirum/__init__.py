@@ -27,7 +27,9 @@ ERRORS = {
 
 
 def create_app(test_config=None):
-    app = Flask(__name__, instance_relative_config=True)
+    # Для собранного .exe данные хранятся рядом с программой, а не во временной папке.
+    instance_path = os.environ.get("TURNIRUM_INSTANCE")
+    app = Flask(__name__, instance_relative_config=True, instance_path=instance_path)
     app.config.from_object(Config)
     if test_config:
         app.config.update(test_config)
