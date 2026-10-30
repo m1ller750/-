@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TurniRUM — tournaments that crown champions</title>
+  <meta name="description" content="TurniRUM is an online tournament platform: organizers run free and paid tournaments, players find their next competition and pay entry fees with PayPal.">
+  <meta name="theme-color" content="#07080f">
+  <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+  <script>document.documentElement.classList.add('js')</script>
+  <script src="vendor/supabase-2.117.3.js" defer></script>
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+  <div class="bg-scene" aria-hidden="true">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+    <div class="grid-overlay"></div>
+  </div>
+
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="logo" href="#/" aria-label="TurniRUM — home">
+        <span class="logo-mark"><svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></span>
+        <span class="logo-text">Turni<span class="grad-text">RUM</span></span>
+      </a>
+      <button class="nav-toggle" type="button" data-nav-toggle aria-label="Open menu" aria-expanded="false">
+        <svg class="ico" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+      </button>
+      <div class="nav-panel" data-nav>
+        <nav class="nav" aria-label="Main" data-nav-links></nav>
+        <div class="nav-user" data-nav-user></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="page" id="app" tabindex="-1">
+    <div class="page-loader" role="status" aria-label="Loading"><span class="spinner"></span></div>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <a class="logo logo-sm" href="#/">
+        <span class="logo-mark"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></span>
+        <span class="logo-text">Turni<span class="grad-text">RUM</span></span>
+      </a>
+      <p class="footer-note">Tournaments of any size · 10% platform fee on paid tournaments only · Payments by PayPal (sandbox)</p>
+      <nav class="footer-links">
+        <a href="#/tournaments">Catalog</a>
+        <a href="#/register?role=organizer">For organizers</a>
+        <a href="#/register?role=participant">For players</a>
+      </nav>
+    </div>
+  </footer>
+
+  <dialog class="modal" id="confirm-modal">
+    <form method="dialog" class="modal-card">
+      <div class="modal-icon"><svg class="ico" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div>
+      <h3 class="modal-title" data-confirm-title>Are you sure?</h3>
+      <p class="modal-text" data-confirm-text></p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" value="cancel">Cancel</button>
+        <button class="btn btn-danger-solid" value="ok" data-confirm-ok>Delete</button>
+      </div>
+    </form>
+  </dialog>
+
+  <noscript><p class="container">TurniRUM needs JavaScript to run. Please enable it in your browser.</p></noscript>
+</body>
+</html>

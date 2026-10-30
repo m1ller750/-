@@ -1,102 +1,96 @@
-# 🏆 ТурниРУМ
+# 🏆 TurniRUM
 
-Онлайн-платформа для турниров на Python (Flask + SQLite). Организаторы создают платные и бесплатные турниры
-и ведут турнирные таблицы, игроки находят турниры с помощью фильтров и регистрируют команды,
-а создатель платформы получает 10% с каждого платного турнира.
+An online tournament platform. Organizers run free and paid tournaments and keep live standings,
+players find tournaments with filters and pay entry fees with **PayPal** (checked automatically on the server),
+and the platform creator earns 10% of every paid tournament.
 
-## Быстрый старт
+The repository contains two versions:
+
+| Version | Folder | Language | How to use |
+|---------|--------|----------|------------|
+| **Web app** (main) | `site/`, `supabase/` | English | hosted on Railway, backend on Supabase |
+| Desktop app | `turnirum/`, `launcher.py` | Russian | `release/TurniRUM.exe`, double-click |
+
+---
+
+## Web app
+
+**Stack:** static single-page app (HTML/CSS/vanilla JS modules, no build step) served by Caddy on Railway ·
+Supabase Postgres + Row Level Security + RPC functions · Supabase Auth · one Supabase Edge Function (`api`)
+for registration and PayPal · PayPal Checkout (sandbox).
+
+### Roles
+
+- **Organizer** — creates free or paid tournaments (paid ones take a PayPal payout email), edits the team table
+  (names, rosters, W/D/L, score, points with automatic W×3 + D), changes the status, adds or removes teams,
+  sees the PayPal payments of a tournament and a **business model** page: prize pool / organizer / 10% platform,
+  income per tournament and an income calculator.
+- **Player** — browses the catalog with filters (search, game, price, status, format, max fee, open slots,
+  "only my tournaments", sorting), registers a team; for a paid tournament pays with PayPal and is admitted
+  instantly after the server verifies the payment. Has a **My tables** page with the standings of every tournament.
+- **Platform creator** — anyone who signs up or signs in with the creator password `66666KZ@$`.
+  Sees platform profit (10% of revenue), turnover by game, top organizers, the PayPal payment ledger
+  and the user list, and can delete any tournament.
+
+### How a PayPal payment is verified
+
+1. The player fills in the team and clicks the PayPal button.
+2. `api` → `paypal-create-order`: the server re-checks the registration (slots, duplicates, roster size),
+   records a pending payment and creates a PayPal order with the entry fee **taken from the database**.
+3. The player approves the payment in the PayPal window.
+4. `api` → `paypal-capture-order`: the server captures the order, checks that PayPal reports `COMPLETED`
+   with the exact amount, currency and order reference, and only then admits the team (`paypal_admit_team`).
+   If the team can no longer join (the last slot was taken meanwhile), the payment is **refunded automatically**.
+
+### Turning on PayPal
+
+The site works without PayPal keys, but paid registrations show "payments are being set up".
+To enable them, set two Edge Function secrets in Supabase (Project → Edge Functions → Secrets):
+
+| Secret | Value |
+|--------|-------|
+| `PAYPAL_CLIENT_ID` | Client ID of a PayPal REST app (developer.paypal.com → Apps & Credentials → Sandbox) |
+| `PAYPAL_CLIENT_SECRET` | Secret of the same app |
+| `PAYPAL_ENV` | optional, `sandbox` (default) or `live` |
+
+No redeploy is needed. Use a sandbox *personal* test account (Developer dashboard → Testing tools →
+Sandbox accounts) to pay on the site.
+
+### Demo accounts
+
+| Role | Email | Password |
+|------|-------|----------|
+| Organizer | `organizer@example.com`, `league@example.com` | `demo1234` |
+| Player | `player1@example.com` … `player4@example.com` | `demo1234` |
+| Creator | sign up with any email and the creator password | `66666KZ@$` |
+
+### Project layout
+
+```
+site/                     the web app (served as-is)
+  index.html, css/, img/, vendor/supabase-*.js
+  js/api.js               the only module that talks to Supabase
+  js/main.js              router, session, navigation by role
+  js/views/*.js           pages: home, catalog, tournament + join, auth, organizer, player, creator
+  Dockerfile, Caddyfile, railway.json   static hosting on Railway
+supabase/migrations/      schema, RLS policies and RPC functions
+supabase/functions/api/   Edge Function: registration, creator password, PayPal orders and captures
+site-tests/               browser tests (Playwright) against an in-memory mock of api.js
+```
+
+### Tests
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-
-flask --app turnirum seed          # необязательно: демо-турниры, команды и аккаунты
-python run.py                      # http://127.0.0.1:5000
+pip install playwright && python site-tests/run_ui_tests.py   # 40 UI checks with a mocked backend
 ```
 
-База данных и секретный ключ создаются автоматически в папке `instance/`.
+The database logic (permissions, RPC validation, PayPal admission and idempotency) was checked directly
+against the Supabase project with SQL as the `anon`, `authenticated` and `service_role` roles.
 
-### Демо-аккаунты (после `flask --app turnirum seed`)
+---
 
-| Роль        | Логин                      | Пароль     |
-|-------------|----------------------------|------------|
-| Организатор | `arena_kz`, `cyber_league` | `demo1234` |
-| Участник    | `player1` … `player6`      | `demo1234` |
+## Desktop app (Russian, Flask + SQLite)
 
-## Роли и возможности
-
-### Организатор
-- **Создать турнир**: название, игра, дата, онлайн или офлайн, лимит команд, размер состава.
-- **Платный или бесплатный турнир.** Для платного указывается взнос и **номер карты** для приёма оплаты
-  (номер проверяется по алгоритму Луна, платёжная система определяется автоматически).
-  Ползунком выбирается, какая доля взносов уходит в призовой фонд; распределение денег видно сразу.
-- **Мои турниры**: выбираете свой турнир и редактируете таблицу команд прямо в ней: названия, составы,
-  победы, ничьи, поражения, счёт, очки (по умолчанию очки считаются автоматически: В×3 + Н),
-  отметки об оплате. Здесь же можно добавить или удалить команду и сменить статус турнира
-  («Регистрация» → «Идёт» → «Завершён»).
-- **Бизнес-модель**: схема распределения денег, собранные взносы, ваш доход, призовые фонды,
-  комиссия платформы, доход по каждому турниру и калькулятор для будущих турниров.
-
-### Участник
-- **Каталог с фильтрами**: поиск, игра, платные или бесплатные, статус, формат, максимальный взнос,
-  «только со свободными местами», «только мои», сортировка.
-- **Регистрация команды**: название и состав. Для платного турнира показывается карта организатора
-  и сумма; после перевода участник отмечает оплату, а организатор подтверждает её в таблице.
-- **Турнирные таблицы**: таблицы своих турниров (ваша команда подсвечена: место, очки, статус оплаты)
-  и любых других турниров платформы.
-
-### Создатель платформы
-Если зарегистрироваться или войти с паролем **`66666KZ@$`**, аккаунт получает роль
-«Создатель платформы»:
-- **Бизнес-модель с прибылью**: 10% от выручки всех платных турниров, оборот, ожидаемая и потенциальная
-  прибыль, оборот по играм, топ организаторов, самые прибыльные турниры.
-- **Управление турнирами**: удаление любого турнира вместе с его командами.
-- **Пользователи**: список всех аккаунтов.
-
-Пароль создателя можно сменить переменной окружения `TURNIRUM_CREATOR_PASSWORD`.
-
-## Бизнес-модель
-
-```
-Взносы команд (100%)
- ├── Призовой фонд ...... доля, выбранная организатором (0–90%)
- ├── Организатору ....... остаток
- └── Создателю платформы  10%
-```
-
-Деньги считаются только по взносам, оплату которых подтвердил организатор. Бесплатные турниры
-комиссией не облагаются.
-
-## Настройки
-
-| Переменная окружения        | По умолчанию                  | Назначение                         |
-|-----------------------------|-------------------------------|------------------------------------|
-| `TURNIRUM_SECRET_KEY`       | генерируется в `instance/`    | ключ подписи сессий                |
-| `TURNIRUM_DATABASE`         | `instance/turnirum.sqlite3`   | путь к базе SQLite                 |
-| `TURNIRUM_CREATOR_PASSWORD` | `66666KZ@$`                   | пароль создателя платформы         |
-| `TURNIRUM_CURRENCY`         | `₸`                           | символ валюты                      |
-| `HOST`, `PORT`              | `127.0.0.1`, `5000`           | адрес сервера для `run.py`         |
-
-## Тесты
-
-```bash
-pip install -r requirements-dev.txt
-pytest
-```
-
-## Структура
-
-```
-turnirum/
-  __init__.py     фабрика приложения
-  auth.py         регистрация, вход, роли, CSRF
-  main.py         главная, каталог, страница турнира, участие
-  organizer.py    создание турниров, таблица команд, бизнес-модель организатора
-  player.py       турнирные таблицы участника
-  creator.py      панель создателя платформы
-  finance.py      расчёт распределения взносов
-  templates/      страницы (Jinja2)
-  static/         стили, скрипты, иконка
-tests/            автотесты (pytest)
-```
+`release/TurniRUM.exe` starts a local server and opens the browser — nothing to install.
+Rebuilt automatically by `.github/workflows/build-exe.yml` when the Python code changes.
+For development: `pip install -r requirements.txt && python run.py`, tests: `pytest`.

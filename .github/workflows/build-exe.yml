@@ -3,6 +3,8 @@ name: Build Windows exe
 on:
   push:
     branches: [claude/turnirum-tournament-platform-bq6cmd, main]
+    # Only the desktop (Python) version is packaged as an exe; website changes don't need a rebuild.
+    paths: ['turnirum/**', 'launcher.py', 'requirements.txt', '.github/workflows/build-exe.yml']
   workflow_dispatch:
 
 permissions:
