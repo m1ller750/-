@@ -8,16 +8,20 @@ The repository contains two versions:
 
 | Version | Folder | Language | How to use |
 |---------|--------|----------|------------|
-| **Web app** (main) | `site/`, `supabase/` | English | hosted on Railway, backend on Supabase |
+| **Web app** (main) | `site/`, `supabase/` | English | open the link below, backend on Supabase |
 | Desktop app | `turnirum/`, `launcher.py` | Russian | `release/TurniRUM.exe`, double-click |
 
 ---
 
 ## Web app
 
-**Stack:** static single-page app (HTML/CSS/vanilla JS modules, no build step) served by Caddy on Railway ·
+**Stack:** static single-page app (HTML/CSS/vanilla JS modules, no build step) ·
 Supabase Postgres + Row Level Security + RPC functions · Supabase Auth · one Supabase Edge Function (`api`)
 for registration and PayPal · PayPal Checkout (sandbox).
+
+**Live:** the site is served straight from this public repository by githack —
+`https://rawcdn.githack.com/m1ller750/-/<commit-sha>/site/index.html` (a link per commit, it never changes).
+`site/` also has a `Dockerfile`, `Caddyfile` and `railway.json` for hosting it on Railway.
 
 ### Roles
 
@@ -28,7 +32,8 @@ for registration and PayPal · PayPal Checkout (sandbox).
 - **Player** — browses the catalog with filters (search, game, price, status, format, max fee, open slots,
   "only my tournaments", sorting), registers a team; for a paid tournament pays with PayPal and is admitted
   instantly after the server verifies the payment. Has a **My tables** page with the standings of every tournament.
-- **Platform creator** — anyone who signs up or signs in with the creator password `66666KZ@$`.
+- **Platform creator** — anyone who signs up or signs in with the creator password (only its SHA-256 is stored,
+  in `app_settings.creator_password_sha256`).
   Sees platform profit (10% of revenue), turnover by game, top organizers, the PayPal payment ledger
   and the user list, and can delete any tournament.
 
@@ -53,8 +58,9 @@ To enable them, set two Edge Function secrets in Supabase (Project → Edge Func
 | `PAYPAL_CLIENT_SECRET` | Secret of the same app |
 | `PAYPAL_ENV` | optional, `sandbox` (default) or `live` |
 
-No redeploy is needed. Use a sandbox *personal* test account (Developer dashboard → Testing tools →
-Sandbox accounts) to pay on the site.
+No redeploy is needed. If the secrets are not set, the function falls back to the rows `paypal_client_id`,
+`paypal_client_secret` and `paypal_env` of the `app_settings` table, which only the server can read.
+Use a sandbox *personal* test account (Developer dashboard → Testing tools → Sandbox accounts) to pay on the site.
 
 ### Demo accounts
 
@@ -62,7 +68,7 @@ Sandbox accounts) to pay on the site.
 |------|-------|----------|
 | Organizer | `organizer@example.com`, `league@example.com` | `demo1234` |
 | Player | `player1@example.com` … `player4@example.com` | `demo1234` |
-| Creator | sign up with any email and the creator password | `66666KZ@$` |
+| Creator | sign up with any email and the creator password | — |
 
 ### Project layout
 
@@ -72,7 +78,7 @@ site/                     the web app (served as-is)
   js/api.js               the only module that talks to Supabase
   js/main.js              router, session, navigation by role
   js/views/*.js           pages: home, catalog, tournament + join, auth, organizer, player, creator
-  Dockerfile, Caddyfile, railway.json   static hosting on Railway
+  Dockerfile, Caddyfile, railway.json   optional static hosting on Railway
 supabase/migrations/      schema, RLS policies and RPC functions
 supabase/functions/api/   Edge Function: registration, creator password, PayPal orders and captures
 site-tests/               browser tests (Playwright) against an in-memory mock of api.js

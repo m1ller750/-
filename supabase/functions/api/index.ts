@@ -17,7 +17,7 @@ Deno.serve(async (req) => {
       case 'claim-creator':
         return await claimCreator(req, body);
       case 'paypal-config':
-        return publicConfig();
+        return await publicConfig();
       case 'paypal-create-order':
       case 'paypal-capture-order': {
         const user = await userFromRequest(req);

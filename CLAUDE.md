@@ -2,7 +2,11 @@
 
 - Пользователь не должен ничего устанавливать (ни Python, ни библиотеки, ни зависимости).
 - Сайты: разворачивай их сам и отдавай готовую ссылку. Бэкенд — Supabase (проект `turnirum`,
-  ref `kcumknqjdgscspxtsigg`), хостинг страниц — Railway (статический сайт из папки `site/`).
+  ref `kcumknqjdgscspxtsigg`). На Railway бесплатный лимит проектов занят, поэтому сайт из папки `site/`
+  отдаётся прямо из публичного репозитория: `https://rawcdn.githack.com/m1ller750/-/<sha коммита>/site/index.html`
+  — после каждого изменения сайта запушь и дай ссылку с новым SHA.
+- Ключи PayPal sandbox для сайта: секреты Edge Function `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET`
+  или строки `paypal_client_id` / `paypal_client_secret` в таблице `app_settings` (читает только сервер).
 - Программы на Python (десктоп): собирай Windows `.exe` (PyInstaller, `--onefile`) через GitHub Actions
   на `windows-latest`; workflow кладёт файл в `release/`, оттуда присылай сам файл в чат
   (не ссылку на страницу сборки — пользователь её не понимает).

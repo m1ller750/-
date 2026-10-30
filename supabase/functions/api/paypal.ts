@@ -21,18 +21,32 @@ interface Payment {
   failure_reason: string | null;
 }
 
-export function paypalConfig(): PayPalConfig {
-  const env = (Deno.env.get('PAYPAL_ENV') ?? 'sandbox').trim().toLowerCase() === 'live' ? 'live' : 'sandbox';
+// Credentials come from the Edge Function secrets; if those are not set, from app_settings
+// (a table only the secret key can read), so they can also be stored with SQL.
+export async function paypalConfig(): Promise<PayPalConfig> {
+  let clientId = Deno.env.get('PAYPAL_CLIENT_ID')?.trim() || null;
+  let secret = Deno.env.get('PAYPAL_CLIENT_SECRET')?.trim() || null;
+  let envName = Deno.env.get('PAYPAL_ENV')?.trim() || '';
+  if (!clientId || !secret) {
+    const { data, error } = await admin.from('app_settings').select('key, value')
+      .in('key', ['paypal_client_id', 'paypal_client_secret', 'paypal_env']);
+    if (error) console.error('app_settings read failed', error);
+    const stored = Object.fromEntries((data ?? []).map((row) => [row.key, String(row.value ?? '').trim()]));
+    clientId = stored.paypal_client_id || null;
+    secret = stored.paypal_client_secret || null;
+    envName ||= stored.paypal_env ?? '';
+  }
+  const env = envName.toLowerCase() === 'live' ? 'live' : 'sandbox';
   return {
     env,
     api: env === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com',
-    clientId: Deno.env.get('PAYPAL_CLIENT_ID')?.trim() || null,
-    secret: Deno.env.get('PAYPAL_CLIENT_SECRET')?.trim() || null,
+    clientId,
+    secret,
   };
 }
 
-export function publicConfig(): Response {
-  const cfg = paypalConfig();
+export async function publicConfig(): Promise<Response> {
+  const cfg = await paypalConfig();
   return json({ enabled: Boolean(cfg.clientId && cfg.secret), clientId: cfg.clientId, currency: 'USD', env: cfg.env });
 }
 
@@ -100,13 +114,20 @@ function requireConfigured(cfg: PayPalConfig): Response | null {
 }
 
 export async function createOrder(user: User, body: Record<string, unknown>): Promise<Response> {
-  const cfg = paypalConfig();
+  const cfg = await paypalConfig();
   const notReady = requireConfigured(cfg);
   if (notReady) return notReady;
 
   const tournamentId = Number(body.tournament_id);
   const members = Array.isArray(body.members) ? body.members.slice(0, 12).map((m) => text(m, 40)) : [];
   if (!Number.isInteger(tournamentId) || tournamentId <= 0) return json({ error: 'Tournament not found.' }, 404);
+
+  // Check the credentials before anything is recorded, so bad keys leave no pending payments behind.
+  try {
+    await accessToken(cfg);
+  } catch {
+    return json({ error: 'PayPal is not available right now. Please try again later.' }, 503);
+  }
 
   // Validates everything (slots, duplicates, roster size, role) and stores the pending payment.
   const { data: payment, error } = await admin.rpc('paypal_start_payment', {
@@ -141,7 +162,7 @@ export async function createOrder(user: User, body: Record<string, unknown>): Pr
 }
 
 export async function captureOrder(user: User, body: Record<string, unknown>): Promise<Response> {
-  const cfg = paypalConfig();
+  const cfg = await paypalConfig();
   const notReady = requireConfigured(cfg);
   if (notReady) return notReady;
 
