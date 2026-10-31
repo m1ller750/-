@@ -334,7 +334,9 @@ td .role-tag { padding: 4px 10px; border-radius: 99px; background: var(--surface
 .hero-lead { font-size: 1.12rem; color: var(--muted); max-width: 560px; margin-bottom: 32px; }
 .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
 .hero-actions-center { justify-content: center; }
-.hero-trust { display: flex; align-items: center; gap: 14px; margin-top: 34px; color: var(--muted); font-size: 0.92rem; }
+.hero-trust { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; margin-top: 34px; color: var(--muted); font-size: 0.92rem; font-weight: 700; }
+.hero-trust span { display: inline-flex; align-items: center; gap: 8px; }
+.hero-trust .ico { color: var(--green); }
 .hero-trust b { color: var(--text); }
 .avatars { display: flex; }
 .avatars .avatar { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--bg); margin-left: -10px; }
@@ -1100,3 +1102,5 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.4; }
 @media (max-width: 960px) {
   .wallet-hero { grid-template-columns: 1fr; padding: 18px; }
 }
+.team-avatar-empty { color: var(--muted); background: var(--surface); border: 1px dashed var(--border-strong); }
+.board-name-empty { color: var(--muted); }

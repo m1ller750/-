@@ -1,14 +1,13 @@
 import * as api from '../api.js';
 import { PLATFORM_FEE } from '../config.js';
 import { sumSplits, tournamentFinance } from '../finance.js';
-import { hueOf, initials } from '../games.js';
 import {
   STATUS_LABELS, centsToMoney, emptyState, formatNumber, gameTile, html, icon, placeBadge, pluralWord, standings,
   tournamentCard,
 } from '../ui.js';
 
-const SAMPLE_BOARD = [['Steppe Wolves', 6, 1, 18], ['Nomad Five', 5, 2, 15], ['Astana Lions', 4, 3, 12],
-  ['Qazaq Eagles', 3, 4, 9], ['Tengri Force', 2, 5, 6]];
+// Until a real tournament has enough teams, the hero shows an empty table that is clearly an example.
+const EXAMPLE_ROWS = 5;
 
 function heroActions(profile) {
   if (!profile) {
@@ -29,14 +28,14 @@ function board(showcase, teams) {
     ? teams.map((t) => html`
         <li>${placeBadge(t.place)}<span class="team-avatar" style="--h: ${t.hue}">${t.initials}</span>
           <span class="board-name">${t.name}</span><span class="board-wl">${t.wins}–${t.losses}</span><b class="board-pts">${t.points}</b></li>`)
-    : SAMPLE_BOARD.map(([name, w, l, p], i) => html`
-        <li>${placeBadge(i + 1)}<span class="team-avatar" style="--h: ${hueOf(name)}">${initials(name)}</span>
-          <span class="board-name">${name}</span><span class="board-wl">${w}–${l}</span><b class="board-pts">${p}</b></li>`);
+    : Array.from({ length: EXAMPLE_ROWS }, (_, i) => html`
+        <li>${placeBadge(i + 1)}<span class="team-avatar team-avatar-empty">${icon('users', 14)}</span>
+          <span class="board-name board-name-empty">Your team</span><span class="board-wl">0–0</span><b class="board-pts">0</b></li>`);
   const head = showcase
     ? html`${gameTile(showcase, 'sm')}<div><b>${showcase.title}</b><small>${showcase.game} · ${STATUS_LABELS[showcase.status]}</small></div>
         ${showcase.status === 'active' ? html`<span class="live-pill"><i></i>LIVE</span>` : ''}`
-    : html`<span class="game-tile game-tile-sm" style="--c1: #f59e0b; --c2: #ef4444">CS2</span>
-        <div><b>Steppe Cup</b><small>Counter-Strike 2 · Live</small></div><span class="live-pill"><i></i>LIVE</span>`;
+    : html`<span class="game-tile game-tile-sm" style="--c1: #8b5cf6; --c2: #22d3ee">${icon('trophy', 16)}</span>
+        <div><b>Your tournament</b><small>Live standings for every team</small></div><span class="badge badge-glass">Example</span>`;
   return html`<div class="float-card hero-board"><div class="board-head">${head}</div><ol class="board-list">${rows}</ol></div>`;
 }
 
@@ -67,8 +66,9 @@ export async function homeView({ profile }) {
             </p>
             <div class="hero-actions">${heroActions(profile)}</div>
             <div class="hero-trust">
-              <div class="avatars">${['Alex', 'Dana', 'Tim', 'Maria', 'Arman'].map((n) => html`<span class="avatar" style="--h: ${hueOf(n)}">${n[0]}</span>`)}</div>
-              <span>Thousands of matches. One platform. <b>Zero spreadsheet chaos.</b></span>
+              <span>${icon('shield', 16)} PayPal checkout</span>
+              <span>${icon('trophy', 16)} Prizes paid automatically</span>
+              <span>${icon('wallet', 16)} Withdraw any time</span>
             </div>
           </div>
           <div class="hero-visual" aria-hidden="true">
@@ -85,8 +85,10 @@ export async function homeView({ profile }) {
               </div>
             </div>
             <div class="float-card hero-card-mini">
-              <span class="kpi-icon">${icon('trophy', 18)}</span>
-              <div><small>Prize pools</small><b>${centsToMoney(prizeCents || 1250000)}</b></div>
+              <span class="kpi-icon">${icon(prizeCents ? 'trophy' : 'gift', 18)}</span>
+              ${prizeCents
+                ? html`<div><small>Prize pools</small><b>${centsToMoney(prizeCents)}</b></div>`
+                : html`<div><small>Free tournaments</small><b>No fees</b></div>`}
             </div>
           </div>
         </div>

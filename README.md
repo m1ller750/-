@@ -83,6 +83,9 @@ Use a sandbox *personal* test account (Developer dashboard → Testing tools →
 
 ### Demo accounts
 
+The database starts without tournaments: everything in the catalog is created by real organizers.
+These test accounts exist for trying the roles:
+
 | Role | Email | Password |
 |------|-------|----------|
 | Organizer | `organizer@example.com`, `league@example.com` | `demo1234` |
