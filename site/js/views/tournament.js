@@ -3,13 +3,14 @@ import { split, tournamentFinance } from '../finance.js';
 import { gameStyle } from '../games.js';
 import {
   busy, centsToMoney, confirmDialog, countdown, coverStyle, fillPercent, formValues, formatDate, gameTile, html, icon,
-  isOpen, messagePage, money, notFound, plural, priceBadge, showFieldErrors, splitMembers, standings, standingsTable,
-  statusBadge, toast,
+  isOpen, messagePage, money, notFound, ordinal, plural, priceBadge, prizePlaces, showFieldErrors, splitMembers, standings,
+  standingsTable, statusBadge, toast,
 } from '../ui.js';
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 function paymentLine(team) {
   if (team.payment_method === 'paypal') return html`<span class="pay-state pay-ok">${icon('check', 13)} Paid with PayPal · ${money(team.paid_amount)}</span>`;
-  if (team.payment_method === 'manual') return html`<span class="pay-state pay-ok">${icon('check', 13)} Payment confirmed by the organizer</span>`;
   return html`<span class="pay-state pay-wait">${icon('hourglass', 13)} Entry fee not paid yet</span>`;
 }
 
@@ -93,10 +94,19 @@ export async function tournamentView({ params, profile, navigate, reload }) {
             <div class="card card-pad side-sticky reveal">
               ${t.is_paid ? html`
                 <div class="prize-box">
-                  <small>Prize pool when full</small>
-                  <b>${centsToMoney(fin.potential.prize)}</b>
-                  <span>Collected so far: ${centsToMoney(fin.collected.prize)}</span>
-                </div>` : html`
+                  ${t.settled_at ? html`
+                    <small>Prizes paid out</small>
+                    <b>${centsToMoney(fin.collected.prize)}</b>
+                    <span>${icon('check', 14)} sent to the winners' PayPal</span>` : html`
+                    <small>Prize pool when full</small>
+                    <b>${centsToMoney(fin.potential.prize)}</b>
+                    <span>Collected so far: ${centsToMoney(fin.collected.prize)}</span>`}
+                </div>
+                ${t.prize_percent ? html`
+                  <div class="side-prizes">
+                    <small class="label">${t.settled_at || fin.collected.prize ? 'Prize places' : 'Prize places when full'}</small>
+                    ${prizePlaces(t, t.settled_at || fin.collected.prize ? fin.collected.prize : fin.potential.prize)}
+                  </div>` : ''}` : html`
                 <div class="prize-box prize-box-free">
                   <small>Entry</small><b>Free</b>
                   ${t.prize_note ? html`<span>${icon('gift', 14)} ${t.prize_note}</span>` : ''}
@@ -159,11 +169,13 @@ function validateTeam(form, t) {
   const values = formValues(form);
   const name = values.name.trim();
   const members = splitMembers(values.members);
+  const prizeEmail = (values.prize_email ?? '').trim();
   const errors = {};
   if (name.length < 2 || name.length > 40) errors.name = 'Team name must be 2–40 characters long.';
   if (!members.length) errors.members = 'Add at least one player.';
   else if (members.length > t.team_size) errors.members = `A team can have at most ${t.team_size} players.`;
-  return { name, members, errors, ok: !Object.keys(errors).length };
+  if (prizeEmail && !EMAIL_RE.test(prizeEmail)) errors.prize_email = 'Enter a valid PayPal email, or leave it empty.';
+  return { name, members, prizeEmail, errors, ok: !Object.keys(errors).length };
 }
 
 export async function joinView({ params, profile, navigate }) {
@@ -184,12 +196,15 @@ export async function joinView({ params, profile, navigate }) {
 
   let paypalCfg = { enabled: false };
   let pending = [];
+  let accountEmail = '';
   if (t.is_paid) {
-    const [cfg, payments] = await Promise.all([
+    const [cfg, payments, email] = await Promise.all([
       api.paypalConfig().catch(() => ({ enabled: false })),
       api.listPayments({ tournamentId: id }).catch(() => []),
+      api.currentUserEmail(),
     ]);
     paypalCfg = cfg;
+    accountEmail = email;
     pending = payments.filter((p) => p.user_id === profile.id && p.status === 'created' && p.paypal_order_id);
   }
   const s = split(tournamentFinance(t).fee, t.prize_percent);
@@ -233,6 +248,12 @@ export async function joinView({ params, profile, navigate }) {
               <span class="label">Roster — up to ${plural(t.team_size, 'player', 'players')}, one per line</span>
               <textarea class="textarea" name="members" rows="${Math.max(t.team_size, 3)}" placeholder="Captain's nickname&#10;Player 2">${profile.full_name}</textarea>
             </label>
+            ${t.is_paid && t.prize_percent ? html`
+              <label class="field" data-field="prize_email">
+                <span class="label">PayPal email for prizes <em class="muted">(optional)</em></span>
+                <span class="input-icon">${icon('mail', 17)}<input class="input" type="email" name="prize_email" maxlength="254" placeholder="${accountEmail || 'you@example.com'}" autocomplete="email"></span>
+                <small class="muted">If your team wins, the prize is sent here automatically. Leave it empty to receive it on the PayPal account you pay with${accountEmail ? `, or on ${accountEmail}` : ''}.</small>
+              </label>` : ''}
           </div>
 
           ${t.is_paid ? html`
@@ -244,7 +265,7 @@ export async function joinView({ params, profile, navigate }) {
                   ${paypalCfg.enabled ? html`
                     <div class="paypal-buttons" data-paypal><div class="paypal-loading"><span class="spinner"></span> Loading PayPal…</div></div>
                     <p class="muted small">${icon('shield', 14)} The payment is verified on our server and your team is admitted instantly.
-                      ${paypalCfg.env === 'sandbox' ? html`<br><b>Sandbox mode:</b> use a PayPal sandbox test account — no real money is charged.` : ''}</p>`
+                      ${paypalCfg.env === 'sandbox' ? html`<br><b>Sandbox mode:</b> pay with a PayPal sandbox test account, or choose “Debit or Credit Card” and use the test card 4111 1111 1111 1111 with any future date and any CVV. No real money is charged.` : ''}</p>`
                     : html`<div class="hint">${icon('info', 16)} <span>Online payments are being set up. Please check back soon.</span></div>`}
                   <div class="pay-status" data-pay-status hidden></div>
                 </div>
@@ -260,6 +281,7 @@ export async function joinView({ params, profile, navigate }) {
                     <li><i class="sw sw-org"></i><span>Organizer</span><em>${s.organizerPercent}%</em><b>${centsToMoney(s.organizer)}</b></li>
                     <li><i class="sw sw-platform"></i><span>Platform</span><em>${s.platformPercent}%</em><b>${centsToMoney(s.platform)}</b></li>
                   </ul>
+                  ${t.prize_percent ? html`<small class="muted">Prize places: ${t.prize_split.map((pct, i) => `${ordinal(i + 1)} ${pct}%`).join(' · ')} of the prize pool</small>` : ''}
                 </div>
               </div>
             </div>` : html`
@@ -326,7 +348,7 @@ export async function joinView({ params, profile, navigate }) {
           },
           createOrder: async () => {
             try {
-              const order = await api.paypalCreateOrder(t.id, team.name, team.members);
+              const order = await api.paypalCreateOrder(t.id, team.name, team.members, team.prizeEmail);
               return order.orderId;
             } catch (error) {
               setStatus('error', error.message);

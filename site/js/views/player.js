@@ -1,11 +1,32 @@
 import * as api from '../api.js';
 import { tournamentFinance } from '../finance.js';
 import {
-  centsToMoney, coverStyle, emptyState, formatDate, gameTile, html, icon, kpi, money, plural, priceBadge, standings,
-  standingsTable, statusBadge,
+  centsToMoney, coverStyle, emptyState, formatDate, gameTile, html, icon, kpi, money, ordinal, payoutBadge, plural, priceBadge,
+  standings, standingsTable, statusBadge,
 } from '../ui.js';
+import { withFreshPayouts } from './organizer.js';
 
 const STATUS_SHORT = { registration: 'Open', active: 'Live', finished: 'Finished' };
+
+const PRIZE_TEXT = {
+  queued: (email) => `The prize is about to be sent to ${email}.`,
+  sent: (email) => `PayPal is sending the prize to ${email}.`,
+  unclaimed: (email) => `PayPal sent the prize to ${email}. If there is no PayPal account with this email yet, create one within 30 days to claim it.`,
+  paid: (email) => `The prize arrived on the PayPal account ${email}.`,
+  failed: (email) => `PayPal could not deliver the prize to ${email}, so the organizer pays you directly.`,
+};
+
+function prizeNotice(prize) {
+  return html`
+    <div class="card card-pad notice notice-prize">
+      ${icon('trophy', 22)}
+      <div>
+        <b>Your team won ${ordinal(prize.place)} place: ${money(prize.amount)}</b>
+        <p>${(PRIZE_TEXT[prize.status] ?? PRIZE_TEXT.sent)(prize.receiver_email)}</p>
+        ${payoutBadge(prize.status)}
+      </div>
+    </div>`;
+}
 
 function sideItem(item, selectedId, mine) {
   return html`
@@ -47,9 +68,12 @@ export async function tablesView({ query, profile }) {
   const teams = standings(await api.getTeams(t.id));
   const myTeam = teams.find((team) => team.captain_id === profile.id) ?? null;
   const fin = tournamentFinance(t);
+  const [prize] = myTeam && t.settled_at
+    ? await withFreshPayouts(() => api.listPayouts({ recipientId: profile.id, tournamentId: t.id }))
+    : [];
   let stats = '';
   if (myTeam) {
-    const payment = myTeam.payment_method === 'paypal' ? 'Paid with PayPal' : myTeam.payment_method === 'manual' ? 'Confirmed by organizer' : 'Not paid';
+    const payment = myTeam.payment_method === 'paypal' ? 'Paid with PayPal' : 'Not paid';
     stats = html`
       <div class="kpis kpis-4">
         ${kpi('crown', 'Place', `${myTeam.place} of ${teams.length}`, myTeam.name, 'amber')}
@@ -105,6 +129,7 @@ export async function tablesView({ query, profile }) {
                 <div class="manage-head-actions"><a class="btn btn-ghost btn-sm" href="#/t/${t.id}">${icon('eye', 15)} Tournament page</a></div>
               </div>
             </div>
+            ${prize ? prizeNotice(prize) : ''}
             ${stats}
             <div class="card card-pad">
               <div class="card-head">

@@ -108,7 +108,7 @@ export function registerView(ctx) {
               <input type="radio" name="role" id="role-organizer" value="organizer" ${role === 'organizer' ? 'checked' : ''}>
               <label for="role-organizer" class="role-option">
                 <span class="role-option-icon role-org">${icon('trophy', 22)}</span>
-                <span><b>Organize</b><small>Create tournaments, run standings, earn income</small></span>
+                <span><b>Organize</b><small>Create tournaments, run standings, earn income. TurniRUM keeps 10% of paid entry fees</small></span>
                 <span class="role-check">${icon('check', 14)}</span>
               </label>
               <input type="radio" name="role" id="role-participant" value="participant" ${role === 'participant' ? 'checked' : ''}>

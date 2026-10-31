@@ -51,6 +51,11 @@ export async function currentUserId() {
   return data.session?.user?.id ?? null;
 }
 
+export async function currentUserEmail() {
+  const { data } = await sb.auth.getSession();
+  return data.session?.user?.email ?? '';
+}
+
 export function onAuthChange(callback) {
   sb.auth.onAuthStateChange((event) => setTimeout(() => callback(event), 0));
 }
@@ -114,23 +119,16 @@ export async function leaveTournament(tournamentId) {
 
 // ------------------------------------------------------------- organizer --
 
-export async function saveTournament(id, data, payoutEmail) {
-  return check(await sb.rpc('save_tournament', { p_id: id ?? null, p_data: data, p_payout_email: payoutEmail || null }));
-}
-
-export async function getPayoutEmail(tournamentId) {
-  const row = check(await sb.from('tournament_payouts').select('paypal_email').eq('tournament_id', tournamentId).maybeSingle());
-  return row?.paypal_email ?? '';
+export async function saveTournament(id, data) {
+  return check(await sb.rpc('save_tournament', { p_id: id ?? null, p_data: data }));
 }
 
 export async function setStatus(tournamentId, status) {
   check(await sb.rpc('set_tournament_status', { p_tournament_id: tournamentId, p_status: status }));
 }
 
-export async function addTeam(tournamentId, name, members, paid) {
-  return check(await sb.rpc('organizer_add_team', {
-    p_tournament_id: tournamentId, p_name: name, p_members: members, p_paid: paid,
-  }));
+export async function addTeam(tournamentId, name, members) {
+  return check(await sb.rpc('organizer_add_team', { p_tournament_id: tournamentId, p_name: name, p_members: members }));
 }
 
 export async function deleteTeam(teamId) {
@@ -140,6 +138,15 @@ export async function deleteTeam(teamId) {
 export async function saveTable(tournamentId, rows, autoPoints) {
   check(await sb.rpc('organizer_save_table', { p_tournament_id: tournamentId, p_rows: rows, p_auto_points: autoPoints }));
 }
+
+// What finishing a paid tournament pays out (amounts in cents), computed by the database.
+export async function settlementPreview(tournamentId) {
+  return check(await sb.rpc('settlement_preview', { p_tournament_id: tournamentId }));
+}
+
+export const finishTournament = (tournamentId) => callApi('finish-tournament', { tournament_id: tournamentId });
+
+export const refundTeam = (teamId) => callApi('refund-team', { team_id: teamId });
 
 // -------------------------------------------------------------- payments --
 
@@ -151,10 +158,33 @@ export async function listPayments({ tournamentId = null, limit = 200 } = {}) {
 
 export const paypalConfig = () => callApi('paypal-config');
 
-export const paypalCreateOrder = (tournamentId, teamName, members) =>
-  callApi('paypal-create-order', { tournament_id: tournamentId, team_name: teamName, members });
+export const paypalCreateOrder = (tournamentId, teamName, members, prizeEmail) =>
+  callApi('paypal-create-order', { tournament_id: tournamentId, team_name: teamName, members, prize_email: prizeEmail });
 
 export const paypalCapture = (orderId) => callApi('paypal-capture-order', { order_id: orderId });
+
+// ------------------------------------------------------- wallets, payouts --
+
+export async function walletEntries(wallet, limit = 500) {
+  return check(await sb.from('wallet_entries').select('*').eq('wallet', wallet)
+    .order('created_at', { ascending: false }).order('id', { ascending: false }).limit(limit));
+}
+
+export async function listPayouts({ tournamentId = null, kind = null, wallet = null, recipientId = null, limit = 200 } = {}) {
+  let query = sb.from('payouts').select('*').order('created_at', { ascending: false }).order('id').limit(limit);
+  if (tournamentId) query = query.eq('tournament_id', tournamentId);
+  if (kind) query = query.eq('kind', kind);
+  if (wallet) query = query.eq('wallet', wallet);
+  if (recipientId) query = query.eq('recipient_id', recipientId);
+  return check(await query);
+}
+
+// Asks PayPal about payouts still on their way; returns how many changed.
+export const refreshPayouts = async () => (await callApi('payouts-refresh')).updated ?? 0;
+
+export const resendPayout = (payoutId) => callApi('payout-resend', { payout_id: payoutId });
+
+export const withdraw = (wallet, amount, email) => callApi('wallet-withdraw', { wallet, amount, email });
 
 // --------------------------------------------------------------- creator --
 
@@ -162,6 +192,5 @@ export async function adminUsers() {
   return check(await sb.rpc('admin_list_users'));
 }
 
-export async function adminDeleteTournament(tournamentId) {
-  check(await sb.rpc('admin_delete_tournament', { p_tournament_id: tournamentId }));
-}
+// Unsettled paid tournaments are refunded in full before they are deleted.
+export const adminDeleteTournament = (tournamentId) => callApi('delete-tournament', { tournament_id: tournamentId });

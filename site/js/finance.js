@@ -1,8 +1,9 @@
 // TurniRUM business model. Every paid tournament's revenue is split three ways:
-//   • PLATFORM_FEE % (10 %) goes to the platform creator,
-//   • prize_percent % goes to the prize pool (the organizer picks 0–90 %),
-//   • the rest is the organizer's income.
-// Amounts are handled in cents so the parts always add up exactly.
+//   • PLATFORM_FEE % (10 %) goes to the platform creator's wallet,
+//   • prize_percent % goes to the prize pool (the organizer picks 0–90 %), paid to the winners' PayPal,
+//   • the rest goes to the organizer's wallet.
+// Amounts are handled in cents so the parts always add up exactly; private.settlement_plan in the database
+// uses the same rounding.
 import { PLATFORM_FEE } from './config.js';
 
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
@@ -44,4 +45,24 @@ export function tournamentFinance(t) {
     collected: split(t.is_paid ? toCents(t.collected) : 0, t.prize_percent),
     potential: split(fee * Math.max(t.max_teams, t.team_count), t.prize_percent),
   };
+}
+
+// Prize places are shares of the prize pool. Every place but the first is rounded down; the first place also
+// gets the leftover cents.
+export const PRIZE_PRESETS = { 1: [100], 2: [70, 30], 3: [50, 30, 20], 4: [40, 30, 20, 10], 5: [35, 25, 20, 12, 8] };
+
+export const splitTotal = (prizeSplit) => prizeSplit.reduce((sum, pct) => sum + pct, 0);
+
+export const splitOk = (prizeSplit) => prizeSplit.length >= 1 && prizeSplit.length <= 10
+  && prizeSplit.every((pct) => Number.isInteger(pct) && pct >= 1 && pct <= 100) && splitTotal(prizeSplit) === 100;
+
+export function prizeAmounts(prizeCents, prizeSplit) {
+  const amounts = prizeSplit.map((pct, i) => (i ? Math.floor((prizeCents * pct) / 100) : 0));
+  amounts[0] = prizeCents - amounts.reduce((sum, cents) => sum + cents, 0);
+  return amounts;
+}
+
+// Money of tournaments that have not paid out yet: it reaches the wallets when the organizer finishes them.
+export function heldShares(tournaments) {
+  return sumSplits(tournaments.filter((t) => t.is_paid && !t.settled_at).map((t) => tournamentFinance(t).collected));
 }

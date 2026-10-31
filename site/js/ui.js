@@ -1,5 +1,5 @@
 // Rendering helpers and shared UI components.
-import { tournamentFinance } from './finance.js';
+import { prizeAmounts, tournamentFinance } from './finance.js';
 import { gameStyle, hueOf, initials } from './games.js';
 import { ICONS } from './icons.js';
 
@@ -101,12 +101,14 @@ export function toast(message, kind = 'info') {
   box.append(el);
 }
 
-export function confirmDialog({ title = 'Are you sure?', text = '', ok = 'Delete' } = {}) {
+export function confirmDialog({ title = 'Are you sure?', text = '', ok = 'Delete', tone = 'danger' } = {}) {
   const modal = document.getElementById('confirm-modal');
   if (!modal || typeof modal.showModal !== 'function') return Promise.resolve(window.confirm(text || title));
   modal.querySelector('[data-confirm-title]').textContent = title;
   modal.querySelector('[data-confirm-text]').textContent = text;
-  modal.querySelector('[data-confirm-ok]').textContent = ok;
+  const okButton = modal.querySelector('[data-confirm-ok]');
+  okButton.textContent = ok;
+  okButton.className = tone === 'primary' ? 'btn btn-primary' : 'btn btn-danger-solid';
   modal.returnValue = '';
   modal.showModal();
   return new Promise((resolve) => {
@@ -329,11 +331,36 @@ export const notFound = () => messagePage(404, 'Page not found', 'The tournament
 export const loader = () => html`<div class="page-loader" role="status" aria-label="Loading"><span class="spinner"></span></div>`;
 
 export const PAYMENT_LABELS = {
-  completed: 'Paid', created: 'Started', pending: 'In review', failed: 'Failed', refunded: 'Refunded',
+  completed: 'Paid', created: 'Started', pending: 'In review', failed: 'Failed', refunding: 'Refunding', refunded: 'Refunded',
 };
 
 export function paymentBadge(status) {
   return html`<span class="badge pay-badge pay-${status}">${PAYMENT_LABELS[status] ?? status}</span>`;
+}
+
+export const PAYOUT_LABELS = {
+  queued: 'Not sent yet', sent: 'On the way', unclaimed: 'Waiting for receiver', paid: 'Paid', failed: 'Returned',
+};
+const PAYOUT_TONES = { queued: 'pending', sent: 'created', unclaimed: 'pending', paid: 'completed', failed: 'refunded' };
+
+export function payoutBadge(status) {
+  return html`<span class="badge pay-badge pay-${PAYOUT_TONES[status] ?? 'created'}">${PAYOUT_LABELS[status] ?? status}</span>`;
+}
+
+export function ordinal(n) {
+  const suffix = { one: 'st', two: 'nd', few: 'rd', other: 'th' }[new Intl.PluralRules('en-US', { type: 'ordinal' }).select(n)];
+  return `${n}${suffix}`;
+}
+
+// The prize places of a paid tournament with their amounts for a given prize pool.
+export function prizePlaces(t, prizeCents) {
+  const prizeSplit = t.prize_split?.length ? t.prize_split : [100];
+  const amounts = prizeAmounts(prizeCents, prizeSplit);
+  return html`
+    <ol class="prize-places">
+      ${prizeSplit.map((pct, i) => html`
+        <li>${placeBadge(i + 1)}<span>${ordinal(i + 1)} place</span><em>${pct}%</em><b>${centsToMoney(amounts[i])}</b></li>`)}
+    </ol>`;
 }
 
 export function avatar(name, key = name) {

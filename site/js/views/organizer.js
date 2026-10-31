@@ -1,14 +1,13 @@
 import * as api from '../api.js';
 import { MAX_PRIZE_PERCENT, PLATFORM_FEE } from '../config.js';
-import { split, sumSplits, toCents, tournamentFinance } from '../finance.js';
+import { PRIZE_PRESETS, split, splitOk, splitTotal, sumSplits, toCents, tournamentFinance } from '../finance.js';
 import { GAME_NAMES, gameStyle } from '../games.js';
 import {
   busy, centsToMoney, confirmDialog, countdown, coverStyle, donut, emptyState, formValues, formatDate, gameTile, html,
-  icon, kpi, money, notFound, paymentBadge, placeBadge, plural, priceBadge, showFieldErrors, splitLegend, splitMembers,
-  standings, statusBadge, toast,
+  icon, kpi, messagePage, money, notFound, ordinal, paymentBadge, payoutBadge, placeBadge, plural, priceBadge, prizePlaces,
+  showFieldErrors, splitLegend, splitMembers, standings, standingsTable, statusBadge, toast,
 } from '../ui.js';
 
-const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const pad = (n) => String(n).padStart(2, '0');
 const localDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const localTime = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -21,7 +20,7 @@ async function ownTournaments(profile) {
 }
 
 // Mirrors the checks in public.save_tournament so mistakes show up next to the right field.
-function validateTournament(v, isNew) {
+function validateTournament(v, isNew, prizeSplit, needsAck) {
   const errors = {};
   const start = new Date(`${v.start_date}T${v.start_time || '18:00'}`);
   if (v.title.trim().length < 3 || v.title.trim().length > 80) errors.title = 'The title must be 3–80 characters long.';
@@ -37,7 +36,8 @@ function validateTournament(v, isNew) {
   if (v.is_paid === '1') {
     const fee = Number(v.entry_fee);
     if (!Number.isFinite(fee) || fee < 1 || fee > 10000) errors.entry_fee = 'Enter an amount from $1 to $10,000.';
-    if (!EMAIL_RE.test(v.payout_email.trim())) errors.payout_email = 'Enter the PayPal email for your payouts.';
+    if (!splitOk(prizeSplit)) errors.prize_split = `Prize places must add up to 100% (now ${splitTotal(prizeSplit)}%).`;
+    if (needsAck && !v.fee_ack) errors.fee_ack = 'Please confirm that TurniRUM keeps 10% of the entry fees.';
   }
   return { errors, start };
 }
@@ -47,20 +47,23 @@ function validateTournament(v, isNew) {
 export async function tournamentFormView({ params, profile, navigate }) {
   const editing = params.id !== undefined;
   let t = null;
-  let payoutEmail = '';
   if (editing) {
     t = await api.getTournament(Number(params.id));
     if (!t || t.organizer_id !== profile.id) return notFound();
-    payoutEmail = t.is_paid ? await api.getPayoutEmail(t.id) : '';
+    if (t.settled_at) return messagePage('Final', 'This tournament is closed', 'Its prizes were distributed, so it can no longer be edited.');
   }
+  // Once a team has paid, the money rules of the tournament stay as they were.
+  const locked = editing && t.paid_count > 0;
+  const acked = Boolean(t?.fee_ack_at);
+  let prizeSplit = [...(t?.prize_split ?? PRIZE_PRESETS[3])];
   const start = t ? new Date(t.start_at) : null;
   const v = {
     title: t?.title ?? '', game: t?.game ?? '', description: t?.description ?? '', format: t?.format ?? 'online',
     city: t?.city ?? '', start_date: start ? localDate(start) : '', start_time: start ? localTime(start) : '18:00',
     max_teams: t?.max_teams ?? 16, team_size: t?.team_size ?? 5, is_paid: t?.is_paid ? '1' : '0',
     entry_fee: t?.is_paid ? Number(t.entry_fee) : '', prize_percent: t?.prize_percent ?? 60, prize_note: t?.prize_note ?? '',
-    payout_email: payoutEmail,
   };
+  const lock = locked ? 'disabled' : '';
 
   return {
     title: editing ? 'Tournament settings' : 'New tournament',
@@ -138,30 +141,44 @@ export async function tournamentFormView({ params, profile, navigate }) {
 
             <div class="card card-pad">
               <div class="step-title"><span class="step-n">4</span><h3>Entry fee</h3></div>
+              ${locked ? html`<div class="hint hint-lock">${icon('lock', 16)} <span>Teams have already paid, so the entry fee and the prizes are locked.</span></div>` : ''}
               <div class="segmented segmented-lg segmented-wide">
-                <input type="radio" name="is_paid" id="paid-0" value="0" ${v.is_paid === '0' ? 'checked' : ''}>
+                <input type="radio" name="is_paid" id="paid-0" value="0" ${v.is_paid === '0' ? 'checked' : ''} ${lock}>
                 <label for="paid-0">${icon('gift', 16)} Free</label>
-                <input type="radio" name="is_paid" id="paid-1" value="1" ${v.is_paid === '1' ? 'checked' : ''}>
+                <input type="radio" name="is_paid" id="paid-1" value="1" ${v.is_paid === '1' ? 'checked' : ''} ${lock}>
                 <label for="paid-1">${icon('coins', 16)} Paid (PayPal)</label>
               </div>
               <div class="paid-fields" data-paid-only ${v.is_paid === '1' ? '' : 'hidden'}>
-                <div class="form-row">
-                  <label class="field" data-field="entry_fee">
-                    <span class="label">Entry fee per team, USD</span>
-                    <span class="input-icon">${icon('coins', 17)}<input class="input" type="number" name="entry_fee" value="${v.entry_fee}" min="1" max="10000" step="0.5" placeholder="25"></span>
-                  </label>
-                  <label class="field" data-field="payout_email">
-                    <span class="label">PayPal email for your payouts</span>
-                    <span class="input-icon">${icon('mail', 17)}<input class="input" type="email" name="payout_email" value="${v.payout_email}" maxlength="254" placeholder="you@paypal.com" autocomplete="email"></span>
-                  </label>
-                </div>
+                <label class="field" data-field="entry_fee">
+                  <span class="label">Entry fee per team, USD</span>
+                  <span class="input-icon">${icon('coins', 17)}<input class="input" type="number" name="entry_fee" value="${v.entry_fee}" min="1" max="10000" step="0.5" placeholder="25" ${lock}></span>
+                </label>
                 <div class="field" data-field="prize_percent">
                   <div class="range-head">
                     <span class="label">Share of entry fees for the prize pool</span>
                     <b class="range-value"><output data-prize-out>${v.prize_percent}</output>%</b>
                   </div>
-                  <input class="range range-prize" type="range" name="prize_percent" min="0" max="${MAX_PRIZE_PERCENT}" step="5" value="${v.prize_percent}">
+                  <input class="range range-prize" type="range" name="prize_percent" min="0" max="${MAX_PRIZE_PERCENT}" step="5" value="${v.prize_percent}" ${lock}>
                   <div class="range-scale"><span>0%</span><span>The rest is yours. ${PLATFORM_FEE}% always goes to the platform</span><span>${MAX_PRIZE_PERCENT}%</span></div>
+                </div>
+                <div class="field" data-field="prize_split" data-prize-split>
+                  <div class="range-head">
+                    <span class="label">Prize places</span>
+                    <b class="split-sum" data-split-sum></b>
+                  </div>
+                  <div class="segmented" role="group" aria-label="Number of prize places">
+                    ${[1, 2, 3, 4, 5].map((n) => html`<button type="button" class="seg-btn" data-places="${n}" ${lock}>Top ${n}</button>`)}
+                  </div>
+                  <div class="split-inputs" data-split-inputs></div>
+                  <small class="muted">Shares of the prize pool. When you finish the tournament, TurniRUM sends each prize to the winning team's PayPal automatically.</small>
+                </div>
+                <div class="fee-notice" data-field="fee_ack">
+                  <span class="fee-notice-icon">${PLATFORM_FEE}%</span>
+                  <div>
+                    <b>TurniRUM keeps ${PLATFORM_FEE}% of the entry fees</b>
+                    <p>From every entry fee paid for this tournament, ${PLATFORM_FEE}% goes to the TurniRUM platform. The other ${MAX_PRIZE_PERCENT}% is yours: the prize pool is paid to the winners automatically and the rest goes to your wallet, from where you withdraw it to PayPal.</p>
+                    <label class="check"><input type="checkbox" name="fee_ack" ${acked ? 'checked' : ''} ${acked ? 'disabled' : ''}><span>I understand and agree that ${PLATFORM_FEE}% of the entry fees goes to TurniRUM</span></label>
+                  </div>
                 </div>
               </div>
               <label class="field" data-field="prize_note">
@@ -188,7 +205,7 @@ export async function tournamentFormView({ params, profile, navigate }) {
               <div class="card card-pad" data-paid-only ${v.is_paid === '1' ? '' : 'hidden'}>
                 <div class="payout-card">
                   <div class="payout-card-top"><span class="paypal-word paypal-word-lg">PayPal</span><span class="badge badge-glass">${icon('shield', 13)} Verified checkout</span></div>
-                  <div><small>Payouts to</small><b data-preview-email>your PayPal email</b></div>
+                  <div><small>Prizes go to</small><b>the winners' PayPal, automatically</b></div>
                   <div class="payout-card-bottom"><span>Players pay</span><b data-preview-fee>—</b></div>
                 </div>
                 <h4 class="split-title">With a full roster</h4>
@@ -199,6 +216,7 @@ export async function tournamentFormView({ params, profile, navigate }) {
                   <li class="is-hl"><i class="sw sw-org"></i><span>Your income</span><em data-pct="organizer"></em><b data-out="organizer"></b></li>
                   <li><i class="sw sw-platform"></i><span>Platform</span><em data-pct="platform"></em><b data-out="platform"></b></li>
                 </ul>
+                <div data-preview-places></div>
               </div>
 
               <div class="alert alert-error" data-error hidden></div>
@@ -215,8 +233,14 @@ export async function tournamentFormView({ params, profile, navigate }) {
       const $ = (sel) => root.querySelector(sel);
       const errorBox = $('[data-error]');
 
-      const refresh = () => {
+      // Disabled (locked) fields are not part of the form values, so they come from the saved tournament.
+      const readValues = () => {
         const values = formValues(form);
+        if (locked) Object.assign(values, { is_paid: t.is_paid ? '1' : '0', entry_fee: t.entry_fee, prize_percent: t.prize_percent });
+        return values;
+      };
+      const refresh = () => {
+        const values = readValues();
         const paid = values.is_paid === '1';
         root.querySelectorAll('[data-paid-only]').forEach((el) => { el.hidden = !paid; });
         $('[data-city]').hidden = values.format !== 'offline';
@@ -232,17 +256,48 @@ export async function tournamentFormView({ params, profile, navigate }) {
         price.className = `badge ${paid ? 'badge-paid' : 'badge-free'}`;
         price.textContent = paid ? (Number(values.entry_fee) > 0 ? money(values.entry_fee) : 'Paid') : 'Free';
 
-        $('[data-prize-out]').textContent = values.prize_percent;
         const range = form.elements.prize_percent;
-        range.style.setProperty('--fill', `${(Number(range.value) * 100) / MAX_PRIZE_PERCENT}%`);
-        $('[data-preview-email]').textContent = values.payout_email.trim() || 'your PayPal email';
-        $('[data-preview-fee]').textContent = Number(values.entry_fee) > 0 ? `${money(values.entry_fee)} per team` : '—';
+        const prizePercent = Number(range.value);
+        $('[data-prize-out]').textContent = prizePercent;
+        range.style.setProperty('--fill', `${(prizePercent * 100) / MAX_PRIZE_PERCENT}%`);
+        const fee = Number(values.entry_fee);
+        $('[data-preview-fee]').textContent = fee > 0 ? `${money(fee)} per team` : '—';
+        $('[data-prize-split]').hidden = prizePercent === 0;
 
-        const s = split(toCents(values.entry_fee) * Math.max(0, Number(values.max_teams) || 0), Number(values.prize_percent));
+        const total = splitTotal(prizeSplit);
+        const sum = $('[data-split-sum]');
+        sum.textContent = `${total}%`;
+        sum.classList.toggle('is-bad', total !== 100);
+        root.querySelectorAll('[data-places]').forEach((button) => {
+          button.classList.toggle('is-on', Number(button.dataset.places) === prizeSplit.length);
+        });
+
+        const s = split(toCents(fee) * Math.max(0, Number(values.max_teams) || 0), prizePercent);
+        $('[data-preview-places]').innerHTML = prizePercent && splitOk(prizeSplit)
+          ? prizePlaces({ prize_split: prizeSplit }, s.prize).toString() : '';
         root.querySelectorAll('[data-out]').forEach((el) => { el.textContent = centsToMoney(s[el.dataset.out]); });
         root.querySelectorAll('[data-pct]').forEach((el) => { el.textContent = `${s[`${el.dataset.pct}Percent`]}%`; });
         root.querySelectorAll('[data-seg]').forEach((el) => { el.style.flexGrow = Math.max(0.001, s[`${el.dataset.seg}Percent`]); });
       };
+
+      const splitBox = $('[data-split-inputs]');
+      const renderSplit = () => {
+        splitBox.innerHTML = prizeSplit.map((pct, i) => html`
+          <label class="split-input">${placeBadge(i + 1)}<span>${ordinal(i + 1)}</span>
+            <input class="input" type="number" min="1" max="100" step="1" value="${pct}" data-pct="${i}" aria-label="${ordinal(i + 1)} place share" ${lock}><em>%</em>
+          </label>`).join('');
+      };
+      splitBox.addEventListener('input', (event) => {
+        const i = event.target.dataset.pct;
+        if (i === undefined) return;
+        prizeSplit[Number(i)] = Math.round(Number(event.target.value) || 0);
+      });
+      root.querySelectorAll('[data-places]').forEach((button) => button.addEventListener('click', () => {
+        prizeSplit = [...PRIZE_PRESETS[Number(button.dataset.places)]];
+        renderSplit();
+        refresh();
+      }));
+      renderSplit();
 
       form.addEventListener('input', refresh);
       form.addEventListener('change', refresh);
@@ -254,8 +309,8 @@ export async function tournamentFormView({ params, profile, navigate }) {
 
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
-        const values = formValues(form);
-        const { errors, start } = validateTournament(values, !editing);
+        const values = readValues();
+        const { errors, start } = validateTournament(values, !editing, prizeSplit, !acked);
         showFieldErrors(form, errors);
         errorBox.hidden = true;
         if (Object.keys(errors).length) {
@@ -268,11 +323,12 @@ export async function tournamentFormView({ params, profile, navigate }) {
           format: values.format, city: values.format === 'offline' ? values.city.trim() : '',
           start_at: start.toISOString(), max_teams: Number(values.max_teams), team_size: Number(values.team_size),
           is_paid: paid, entry_fee: paid ? Number(values.entry_fee) : 0,
-          prize_percent: Number(values.prize_percent), prize_note: values.prize_note.trim(),
+          prize_percent: Number(values.prize_percent), prize_split: locked ? t.prize_split : prizeSplit,
+          prize_note: values.prize_note.trim(), fee_ack: acked || Boolean(values.fee_ack),
         };
         await busy(form.querySelector('[type=submit]'), async () => {
           try {
-            const id = await api.saveTournament(editing ? t.id : null, data, paid ? values.payout_email.trim() : null);
+            const id = await api.saveTournament(editing ? t.id : null, data);
             toast(editing ? 'Changes saved.' : `“${data.title}” is live and open for registration!`, 'success');
             navigate(`/organizer?id=${id}`);
           } catch (error) {
@@ -292,12 +348,81 @@ function paymentCell(t, team) {
   if (team.payment_method === 'paypal') {
     return html`<td class="num"><span class="badge pay-badge pay-completed" title="Verified PayPal payment">${icon('check', 12)} PayPal</span><small class="pay-note">${money(team.paid_amount)}</small></td>`;
   }
-  return html`<td class="num">
-    <label class="switch switch-sm" title="Mark an offline payment">
-      <input type="checkbox" data-stat="paid" ${team.is_paid ? 'checked' : ''}><span class="track"></span>
-    </label>
-    <small class="pay-note">${team.is_paid ? 'Marked paid' : 'Unpaid'}</small>
-  </td>`;
+  return html`<td class="num"><span class="badge pay-badge pay-created" title="${team.captain_id ? 'Has not paid the entry fee' : 'Added by you without an entry fee'}">${team.captain_id ? 'Unpaid' : 'Invited'}</span></td>`;
+}
+
+const inTransit = (p) => p.status === 'sent' || p.status === 'unclaimed';
+
+// Loads payouts and, if some are still on their way, asks PayPal for news first.
+export async function withFreshPayouts(load) {
+  const payouts = await load();
+  if (!payouts.some(inTransit)) return payouts;
+  return (await api.refreshPayouts().catch(() => 0)) ? load() : payouts;
+}
+
+export function payoutsTable(payouts, { prizes = false, resend = false } = {}) {
+  return html`
+    <div class="table-wrap">
+      <table class="standings">
+        <thead><tr>
+          <th>Date</th>${prizes ? html`<th class="num">Place</th><th>Team</th>` : ''}<th>PayPal account</th>
+          <th class="num">Amount</th><th class="num">Status</th>
+        </tr></thead>
+        <tbody>
+          ${payouts.map((p) => html`
+            <tr>
+              <td class="nowrap muted">${formatDate(p.created_at, { time: true, short: true })}</td>
+              ${prizes ? html`<td class="num">${placeBadge(p.place)}</td><td><b>${p.team_name}</b>${p.tournament_id ? '' : html`<small class="pay-note">${p.tournament_title}</small>`}</td>` : ''}
+              <td class="muted">${p.receiver_email}</td>
+              <td class="num nowrap"><b>${money(p.amount)}</b></td>
+              <td class="num">${payoutBadge(p.status)}
+                ${p.status === 'unclaimed' ? html`<small class="pay-note">The receiver has to claim it in PayPal</small>` : ''}
+                ${p.failure_reason ? html`<small class="pay-note" title="${p.failure_reason}">${p.failure_reason}</small>` : ''}
+                ${resend && p.status === 'queued' ? html`<button class="btn btn-ghost btn-sm" type="button" data-resend="${p.id}">${icon('refresh', 14)} Send again</button>` : ''}
+              </td>
+            </tr>`)}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+export function bindResend(root, reload) {
+  root.querySelectorAll('[data-resend]').forEach((button) => button.addEventListener('click', () => busy(button, async () => {
+    try {
+      const { payout } = await api.resendPayout(Number(button.dataset.resend));
+      toast(payout.status === 'queued' ? payout.failure_reason || 'PayPal did not accept it yet.' : 'Sent with PayPal.',
+        payout.status === 'queued' ? 'warning' : 'success');
+      reload();
+    } catch (error) {
+      toast(error.message, 'error');
+    }
+  })));
+}
+
+// Asks for confirmation with the exact money the database will move, then settles the tournament.
+async function finishPaidTournament(t, reload) {
+  const plan = await api.settlementPreview(t.id);
+  const lines = [
+    `Collected with PayPal: ${centsToMoney(plan.collected)}`,
+    `Platform fee (${PLATFORM_FEE}%): ${centsToMoney(plan.platform)} · to your wallet: ${centsToMoney(plan.organizer)}`,
+  ];
+  const prizes = plan.places.filter((place) => place.amount > 0);
+  if (prizes.length) {
+    lines.push('', 'Prizes:');
+    for (const place of prizes) {
+      const where = !place.team_id ? 'nobody finished there, goes to your wallet'
+        : place.has_email ? `${place.team_name}, sent to their PayPal` : `${place.team_name}, no PayPal email: goes to your wallet`;
+      lines.push(`${ordinal(place.place)} place: ${centsToMoney(place.amount)} · ${where}`);
+    }
+  }
+  lines.push('', 'The standings become final.');
+  const ok = await confirmDialog({ title: 'Finish and pay the prizes?', text: lines.join('\n'), ok: 'Finish & pay', tone: 'primary' });
+  if (!ok) return;
+  const { payouts } = await api.finishTournament(t.id);
+  const waiting = payouts.filter((p) => p.status === 'queued').length;
+  if (waiting) toast(`The tournament is finished, but ${plural(waiting, 'prize', 'prizes')} could not be sent yet. See “Prize payouts”.`, 'warning');
+  else toast(payouts.length ? `The tournament is finished. ${plural(payouts.length, 'prize was', 'prizes were')} sent with PayPal!` : 'The tournament is finished.', 'success');
+  reload();
 }
 
 export async function manageView({ query, profile, reload }) {
@@ -315,11 +440,13 @@ export async function manageView({ query, profile, reload }) {
   }
   const wanted = Number(query.get('id'));
   const t = tournaments.find((item) => item.id === wanted) ?? tournaments[0];
-  const [teamRows, payoutEmail, payments] = await Promise.all([
+  const settled = Boolean(t.settled_at);
+  const [teamRows, payments, prizePayouts] = await Promise.all([
     api.getTeams(t.id),
-    t.is_paid ? api.getPayoutEmail(t.id) : Promise.resolve(''),
     t.is_paid ? api.listPayments({ tournamentId: t.id, limit: 20 }) : Promise.resolve([]),
+    settled ? withFreshPayouts(() => api.listPayouts({ tournamentId: t.id, kind: 'prize' })) : Promise.resolve([]),
   ]);
+  prizePayouts.sort((a, b) => a.place - b.place);
   const teams = standings(teamRows);
   const fin = tournamentFinance(t);
   const slotsLeft = Math.max(0, t.max_teams - t.team_count);
@@ -364,16 +491,21 @@ export async function manageView({ query, profile, reload }) {
                 </div>
                 <div class="manage-head-actions">
                   <a class="btn btn-ghost btn-sm" href="#/t/${t.id}">${icon('eye', 15)} Public page</a>
-                  <a class="btn btn-ghost btn-sm" href="#/organizer/t/${t.id}/edit">${icon('edit', 15)} Settings</a>
+                  ${settled ? '' : html`<a class="btn btn-ghost btn-sm" href="#/organizer/t/${t.id}/edit">${icon('edit', 15)} Settings</a>`}
                 </div>
               </div>
-              <div class="status-switch">
-                <span class="label">Status</span>
-                <div class="segmented">
-                  ${[['registration', 'Registration', 'door'], ['active', 'Live', 'play'], ['finished', 'Finished', 'flag']].map(([value, label, ic]) => html`
-                    <button type="button" class="seg-btn ${t.status === value ? 'is-on' : ''}" data-status="${value}">${icon(ic, 14)} ${label}</button>`)}
-                </div>
-              </div>
+              ${settled ? html`
+                <div class="status-switch">
+                  <span class="badge pay-badge pay-completed">${icon('trophy', 13)} Prizes distributed</span>
+                  <span class="muted small">${formatDate(t.settled_at, { time: true })} · the standings are final</span>
+                </div>` : html`
+                <div class="status-switch">
+                  <span class="label">Status</span>
+                  <div class="segmented">
+                    ${[['registration', 'Registration', 'door'], ['active', 'Live', 'play'], ['finished', t.is_paid ? 'Finish & pay prizes' : 'Finished', 'flag']].map(([value, label, ic]) => html`
+                      <button type="button" class="seg-btn ${t.status === value ? 'is-on' : ''}" data-status="${value}">${icon(ic, 14)} ${label}</button>`)}
+                  </div>
+                </div>`}
             </div>
 
             <div class="kpis kpis-4">
@@ -381,7 +513,7 @@ export async function manageView({ query, profile, reload }) {
               ${t.is_paid ? html`
                 ${kpi('check', 'Paid', `${t.paid_count} of ${t.team_count}`, `${plural(paypalCount, 'PayPal payment', 'PayPal payments')}`, 'green')}
                 ${kpi('trophy', 'Prize pool', centsToMoney(fin.collected.prize), `up to ${centsToMoney(fin.potential.prize)} when full`, 'amber')}
-                ${kpi('wallet', 'Your income', centsToMoney(fin.collected.organizer), `platform: ${centsToMoney(fin.collected.platform)}`, 'cyan')}` : html`
+                ${kpi('wallet', 'Your income', centsToMoney(fin.collected.organizer), settled ? 'in your wallet' : 'reaches your wallet when you finish', 'cyan')}` : html`
                 ${kpi('gift', 'Entry', 'Free', t.prize_note || 'no entry fee', 'green')}
                 ${kpi('calendar', 'Starts', formatDate(t.start_at, { short: true }), countdown(t.start_at), 'amber')}
                 ${kpi('user', 'Self-registered', teams.filter((team) => team.captain_id).length, 'teams signed up by players', 'cyan')}`}
@@ -390,22 +522,29 @@ export async function manageView({ query, profile, reload }) {
             ${t.is_paid ? html`
               <div class="card pay-strip">
                 <span class="kpi-icon">${icon('wallet', 18)}</span>
-                <div><small>Payouts to</small><b>${payoutEmail || '—'}</b></div>
                 <div><small>Entry fee</small><b>${money(t.entry_fee)}</b></div>
                 <div><small>Split</small><b>${t.prize_percent}% prizes · ${100 - PLATFORM_FEE - t.prize_percent}% you · ${PLATFORM_FEE}% platform</b></div>
-                <a class="btn btn-ghost btn-sm" href="#/organizer/business">${icon('pie', 15)} Business model</a>
+                <div><small>Prize places</small><b>${t.prize_percent ? t.prize_split.map((pct, i) => `${ordinal(i + 1)} ${pct}%`).join(' · ') : 'no prize pool'}</b></div>
+                <a class="btn btn-ghost btn-sm" href="#/wallet">${icon('wallet', 15)} Wallet</a>
+              </div>` : ''}
+
+            ${settled && t.is_paid ? html`
+              <div class="card card-pad" id="prizes">
+                <div class="card-head"><h3 class="card-title">${icon('trophy', 18)} Prize payouts</h3><span class="muted small">sent with PayPal</span></div>
+                ${prizePayouts.length ? payoutsTable(prizePayouts, { prizes: true, resend: true })
+                  : emptyState('trophy', 'No PayPal prize payouts', 'No prize was sent automatically. Prizes you pay yourself are in your wallet.')}
               </div>` : ''}
 
             <div class="card card-pad" id="table">
               <div class="card-head">
                 <h3 class="card-title">${icon('table', 18)} Teams</h3>
-                ${teams.length ? html`
+                ${teams.length && !settled ? html`
                   <div class="table-tools">
                     <label class="switch switch-sm"><input type="checkbox" data-auto-points checked><span class="track"></span><span>Auto points (W×3 + D)</span></label>
                     <button class="btn btn-primary btn-sm" type="button" data-save>${icon('save', 15)} Save table</button>
                   </div>` : ''}
               </div>
-              ${teams.length ? html`
+              ${settled ? standingsTable(teams) : teams.length ? html`
                 <div class="table-wrap">
                   <table class="standings standings-edit">
                     <thead><tr>
@@ -427,27 +566,30 @@ export async function manageView({ query, profile, reload }) {
                             <td class="num"><input class="cell-input cell-num" type="number" min="0" max="99999" data-stat="${field}" value="${team[field]}" aria-label="${field.replace('_', ' ')}"></td>`)}
                           <td class="num"><input class="cell-input cell-num cell-pts" type="number" min="0" max="99999" data-stat="points" value="${team.points}" aria-label="Points"></td>
                           ${paymentCell(t, team)}
-                          <td class="num"><button class="icon-btn icon-btn-danger" type="button" data-delete="${team.id}" data-name="${team.name}" data-paypal="${team.payment_method === 'paypal' ? '1' : ''}" title="Remove team" aria-label="Remove team">${icon('trash', 16)}</button></td>
+                          <td class="num">${team.payment_method === 'paypal'
+                            ? html`<button class="icon-btn icon-btn-danger" type="button" data-refund="${team.id}" data-name="${team.name}" data-amount="${team.paid_amount}" title="Refund and remove" aria-label="Refund and remove">${icon('refresh', 16)}</button>`
+                            : html`<button class="icon-btn icon-btn-danger" type="button" data-delete="${team.id}" data-name="${team.name}" title="Remove team" aria-label="Remove team">${icon('trash', 16)}</button>`}</td>
                         </tr>`)}
                     </tbody>
                   </table>
                 </div>
                 <div class="table-foot">
-                  <span class="muted small">${icon('info', 14)} Places update automatically: points → difference → scored → wins. PayPal payments are verified automatically.</span>
+                  <span class="muted small">${icon('info', 14)} Places update automatically: points → difference → scored → wins. A team that paid with PayPal can only be removed with a refund.</span>
                   <button class="btn btn-primary" type="button" data-save>${icon('save', 16)} Save table</button>
                 </div>` : emptyState('users', 'No teams yet', 'Share the tournament link or add teams manually below.')}
             </div>
 
-            <div class="card card-pad">
-              <h3 class="card-title">${icon('plus', 18)} Add a team manually</h3>
-              ${slotsLeft > 0 ? html`
-                <form class="add-team" data-add-team novalidate>
-                  <input class="input" name="name" maxlength="40" placeholder="Team name" required aria-label="Team name">
-                  <input class="input" name="members" placeholder="Players, comma separated (up to ${t.team_size})" aria-label="Players">
-                  ${t.is_paid ? html`<label class="switch switch-sm"><input type="checkbox" name="paid"><span class="track"></span><span>Paid offline</span></label>` : ''}
-                  <button class="btn btn-primary" type="submit">${icon('plus', 16)} Add</button>
-                </form>` : html`<div class="hint">${icon('info', 16)} <span>All ${t.max_teams} slots are taken. Raise the limit in the <a class="link" href="#/organizer/t/${t.id}/edit">tournament settings</a>.</span></div>`}
-            </div>
+            ${settled ? '' : html`
+              <div class="card card-pad">
+                <h3 class="card-title">${icon('plus', 18)} Add a team manually</h3>
+                ${t.is_paid ? html`<p class="muted small">Teams you add are invited: they play without paying the entry fee.</p>` : ''}
+                ${slotsLeft > 0 ? html`
+                  <form class="add-team" data-add-team novalidate>
+                    <input class="input" name="name" maxlength="40" placeholder="Team name" required aria-label="Team name">
+                    <input class="input" name="members" placeholder="Players, comma separated (up to ${t.team_size})" aria-label="Players">
+                    <button class="btn btn-primary" type="submit">${icon('plus', 16)} Add</button>
+                  </form>` : html`<div class="hint">${icon('info', 16)} <span>All ${t.max_teams} slots are taken. Raise the limit in the <a class="link" href="#/organizer/t/${t.id}/edit">tournament settings</a>.</span></div>`}
+              </div>`}
 
             ${t.is_paid ? html`
               <div class="card card-pad">
@@ -464,6 +606,10 @@ export async function manageView({ query, profile, reload }) {
       root.querySelectorAll('[data-status]').forEach((button) => button.addEventListener('click', () => busy(button, async () => {
         if (button.dataset.status === t.status) return;
         try {
+          if (button.dataset.status === 'finished' && t.is_paid) {
+            await finishPaidTournament(t, reload);
+            return;
+          }
           await api.setStatus(t.id, button.dataset.status);
           toast({ registration: 'Registration is open.', active: 'The tournament is live!', finished: 'The tournament is finished.' }[button.dataset.status], 'success');
           reload();
@@ -493,7 +639,6 @@ export async function manageView({ query, profile, reload }) {
             wins: num('wins'), draws: num('draws'), losses: num('losses'),
             score_for: num('score_for'), score_against: num('score_against'), points: num('points'),
           };
-          if (get('paid')) entry.paid = get('paid').checked;
           return entry;
         });
         const bad = rows.find((row) => row.name.length < 2);
@@ -510,11 +655,30 @@ export async function manageView({ query, profile, reload }) {
         }
       })));
 
+      root.querySelectorAll('[data-refund]').forEach((button) => button.addEventListener('click', async () => {
+        const ok = await confirmDialog({
+          title: 'Refund and remove this team?',
+          text: `${money(button.dataset.amount)} goes back to the PayPal account of “${button.dataset.name}”, and the team and its results are removed.`,
+          ok: 'Refund & remove',
+        });
+        if (!ok) return;
+        await busy(button, async () => {
+          try {
+            const { refunded } = await api.refundTeam(Number(button.dataset.refund));
+            toast(`${money(refunded)} was refunded and “${button.dataset.name}” was removed.`, 'success');
+            reload();
+          } catch (error) {
+            toast(error.message, 'error');
+          }
+        });
+      }));
+
+      bindResend(root, reload);
+
       root.querySelectorAll('[data-delete]').forEach((button) => button.addEventListener('click', async () => {
-        const paypal = button.dataset.paypal === '1';
         const ok = await confirmDialog({
           title: 'Remove this team?',
-          text: `Team “${button.dataset.name}” and its results will be removed.${paypal ? ' Its PayPal payment is not refunded automatically.' : ''}`,
+          text: `Team “${button.dataset.name}” and its results will be removed.`,
           ok: 'Remove',
         });
         if (!ok) return;
@@ -539,7 +703,7 @@ export async function manageView({ query, profile, reload }) {
         }
         busy(addForm.querySelector('[type=submit]'), async () => {
           try {
-            await api.addTeam(t.id, name, splitMembers(values.members), Boolean(values.paid));
+            await api.addTeam(t.id, name, splitMembers(values.members));
             toast(`Team “${name}” added.`, 'success');
             reload();
           } catch (error) {
@@ -614,10 +778,10 @@ export async function businessView({ profile }) {
           </div>
           <div class="flow-targets">
             <div class="flow-target card flow-prize"><i class="sw sw-prize"></i>
-              <div><b>Prize pool</b><small>You choose the share when you create the tournament — 0 to ${MAX_PRIZE_PERCENT}%</small></div>
+              <div><b>Prize pool</b><small>0 to ${MAX_PRIZE_PERCENT}%, split between prize places. Sent to the winners' PayPal when you finish</small></div>
               <em>${avgPrize}%<small>your average</small></em></div>
             <div class="flow-target card flow-org"><i class="sw sw-org"></i>
-              <div><b>Your income</b><small>Everything left after prizes and the platform fee</small></div>
+              <div><b>Your income</b><small>Everything left after prizes and the platform fee. Lands in your wallet</small></div>
               <em>${MAX_PRIZE_PERCENT - avgPrize}%<small>your average</small></em></div>
             <div class="flow-target card flow-platform"><i class="sw sw-platform"></i>
               <div><b>Platform creator</b><small>A flat fee on the revenue of every paid tournament</small></div>

@@ -7,17 +7,19 @@ import {
   kpi, money, placeBadge, plural, pluralWord, splitLegend, statusBadge, toast,
 } from '../ui.js';
 import { ROLE_LABELS } from '../roles.js';
-import { paymentsTable } from './organizer.js';
+import { paymentsTable, payoutsTable, withFreshPayouts } from './organizer.js';
 
 async function deleteTournament(t, reload) {
+  const refunds = t.is_paid && !t.settled_at && t.paid_count > 0;
   const ok = await confirmDialog({
     title: 'Delete this tournament?',
-    text: `“${t.title}” and ${plural(t.team_count, 'team', 'teams')} will be deleted permanently. Payment records stay in the ledger.`,
+    text: `“${t.title}” and ${plural(t.team_count, 'team', 'teams')} will be deleted permanently.${refunds
+      ? ` First, ${plural(t.paid_count, 'PayPal entry fee is', 'PayPal entry fees are')} refunded to the players.` : ''} Payment records stay in the ledger.`,
   });
   if (!ok) return;
   try {
-    await api.adminDeleteTournament(t.id);
-    toast(`“${t.title}” was deleted.`, 'success');
+    const { refunded } = await api.adminDeleteTournament(t.id);
+    toast(refunded ? `“${t.title}” was deleted and ${plural(refunded, 'payment was', 'payments were')} refunded.` : `“${t.title}” was deleted.`, 'success');
     reload();
   } catch (error) {
     toast(error.message, 'error');
@@ -74,7 +76,8 @@ export async function creatorDashboardView({ reload }) {
             <h1>TurniRUM profit</h1>
             <p class="muted">You earn <b>${PLATFORM_FEE}%</b> of the revenue of every paid tournament. Free tournaments carry no fee.</p>
             <div class="creator-actions">
-              <a class="btn btn-gold" href="#/creator/tournaments">${icon('shield', 16)} Manage tournaments</a>
+              <a class="btn btn-gold" href="#/wallet">${icon('wallet', 16)} Platform wallet</a>
+              <a class="btn btn-ghost" href="#/creator/tournaments">${icon('shield', 16)} Manage tournaments</a>
               <a class="btn btn-ghost" href="#/creator/payments">${icon('receipt', 16)} PayPal payments</a>
             </div>
           </div>
@@ -234,10 +237,16 @@ export async function creatorTournamentsView({ query, reload }) {
 // -------------------------------------------------------------- payments --
 
 export async function creatorPaymentsView() {
-  const payments = await api.listPayments({ limit: 500 });
+  const [payments, payouts] = await Promise.all([
+    api.listPayments({ limit: 500 }),
+    withFreshPayouts(() => api.listPayouts({ limit: 500 })),
+  ]);
   const completed = payments.filter((p) => p.status === 'completed');
   const volume = completed.reduce((sum, p) => sum + Math.round(Number(p.amount) * 100), 0);
   const refunded = payments.filter((p) => p.status === 'refunded').length;
+  const fees = [...payments, ...payouts].reduce((sum, p) => sum + Math.round(Number(p.paypal_fee ?? 0) * 100), 0);
+  const prizes = payouts.filter((p) => p.kind === 'prize');
+  const withdrawals = payouts.filter((p) => p.kind === 'withdrawal');
   return {
     title: 'PayPal payments',
     html: html`
@@ -253,10 +262,19 @@ export async function creatorPaymentsView() {
           ${kpi('check', 'Verified', completed.length, 'teams admitted after payment', 'green')}
           ${kpi('coins', 'Volume', centsToMoney(volume), 'captured with PayPal', 'violet')}
           ${kpi('bank', 'Your share', centsToMoney(Math.floor((volume * PLATFORM_FEE + 50) / 100)), `${PLATFORM_FEE}% platform fee`, 'amber')}
-          ${kpi('refresh', 'Refunded', refunded, 'automatic refunds', 'pink')}
+          ${kpi('refresh', 'Refunded', refunded, `PayPal fees so far: ${centsToMoney(fees)}`, 'pink')}
         </div>
         <div class="card card-pad">
+          <div class="card-head"><h3 class="card-title">${icon('receipt', 18)} Entry fees</h3></div>
           ${payments.length ? paymentsTable(payments) : emptyState('receipt', 'No payments yet', 'Payments appear here when players pay entry fees with PayPal.')}
+        </div>
+        <div class="card card-pad">
+          <div class="card-head"><h3 class="card-title">${icon('trophy', 18)} Prize payouts</h3><span class="muted small">sent to winners with PayPal</span></div>
+          ${prizes.length ? payoutsTable(prizes, { prizes: true }) : emptyState('trophy', 'No prizes paid yet', 'Prizes are sent when organizers finish their paid tournaments.')}
+        </div>
+        <div class="card card-pad">
+          <div class="card-head"><h3 class="card-title">${icon('bank', 18)} Withdrawals</h3><span class="muted small">from organizer wallets and the platform wallet</span></div>
+          ${withdrawals.length ? payoutsTable(withdrawals) : emptyState('bank', 'No withdrawals yet', 'Organizers withdraw their income from their wallets.')}
         </div>
       </section>`,
   };

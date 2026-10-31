@@ -9,6 +9,7 @@ import { homeView } from './views/home.js';
 import { businessView, manageView, tournamentFormView } from './views/organizer.js';
 import { tablesView } from './views/player.js';
 import { joinView, tournamentView } from './views/tournament.js';
+import { walletView } from './views/wallet.js';
 
 
 const ROUTES = [
@@ -22,6 +23,7 @@ const ROUTES = [
   ['/organizer/new', tournamentFormView, ['organizer']],
   ['/organizer/t/:id/edit', tournamentFormView, ['organizer']],
   ['/organizer/business', businessView, ['organizer']],
+  ['/wallet', walletView, ['organizer', 'creator']],
   ['/player', tablesView, ['participant']],
   ['/creator', creatorDashboardView, ['creator']],
   ['/creator/tournaments', creatorTournamentsView, ['creator']],
@@ -39,11 +41,13 @@ const NAV = {
     ['/organizer/new', 'plus', 'Create tournament', ['/organizer/new']],
     ['/organizer', 'table', 'My tournaments', ['/organizer', '/organizer/t/']],
     ['/organizer/business', 'pie', 'Business model', ['/organizer/business']],
+    ['/wallet', 'wallet', 'Wallet', ['/wallet']],
   ],
   participant: [['/player', 'table', 'My tables', ['/player']]],
   creator: [
     ['/creator', 'pie', 'Business model', ['/creator']],
     ['/creator/tournaments', 'shield', 'Manage', ['/creator/tournaments']],
+    ['/wallet', 'wallet', 'Wallet', ['/wallet']],
     ['/creator/payments', 'receipt', 'Payments', ['/creator/payments']],
     ['/creator/users', 'users', 'Users', ['/creator/users']],
   ],

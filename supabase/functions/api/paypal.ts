@@ -3,7 +3,7 @@
 import type { User } from 'npm:@supabase/supabase-js@2.117.3';
 import { admin, json, text } from './common.ts';
 
-interface PayPalConfig {
+export interface PayPalConfig {
   env: 'sandbox' | 'live';
   api: string;
   clientId: string | null;
@@ -73,7 +73,7 @@ async function accessToken(cfg: PayPalConfig): Promise<string> {
   return cachedToken.value;
 }
 
-async function paypal(cfg: PayPalConfig, path: string, options: { method?: string; body?: unknown; requestId?: string } = {}) {
+export async function paypal(cfg: PayPalConfig, path: string, options: { method?: string; body?: unknown; requestId?: string } = {}) {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${await accessToken(cfg)}`,
     'Content-Type': 'application/json',
@@ -109,7 +109,7 @@ async function refund(cfg: PayPalConfig, payment: Payment, captureId: string, re
   return res.ok;
 }
 
-function requireConfigured(cfg: PayPalConfig): Response | null {
+export function requireConfigured(cfg: PayPalConfig): Response | null {
   return cfg.clientId && cfg.secret ? null : json({ error: 'PayPal payments are not configured yet.' }, 503);
 }
 
@@ -135,6 +135,7 @@ export async function createOrder(user: User, body: Record<string, unknown>): Pr
     p_tournament_id: tournamentId,
     p_name: text(body.team_name, 60),
     p_members: members,
+    p_prize_email: text(body.prize_email, 254) || null,
   });
   if (error || !payment) return json({ error: error?.message ?? 'Could not start the payment.' }, 400);
 
@@ -241,5 +242,7 @@ export async function captureOrder(user: User, body: Record<string, unknown>): P
         : `${admitError.message} Please contact the organizer about a refund.`,
     }, 409);
   }
+  const fee = capture.seller_receivable_breakdown?.paypal_fee?.value;
+  if (fee !== undefined) await updatePayment(payment.id, { paypal_fee: Number(fee) });
   return json({ status: 'completed', teamId, tournamentId: payment.tournament_id });
 }

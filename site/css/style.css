@@ -1061,3 +1061,42 @@ input[type="number"]::-webkit-inner-spin-button { opacity: 0.4; }
 .dd-ok { color: var(--green); }
 .game-tile.is-long { font-size: 0.56rem; letter-spacing: -0.04em; }
 .game-tile-lg.is-long { font-size: 0.82rem; }
+
+/* ---- prizes, the platform fee notice and wallets ---- */
+.modal-text { white-space: pre-line; }
+.hint-lock { margin-bottom: 16px; }
+.split-sum { font-family: var(--font-display); font-size: 1.1rem; color: var(--green); }
+.split-sum.is-bad { color: #fca5a5; }
+.split-inputs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 10px 0 4px; }
+.split-input { display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 6px; border-radius: 13px; background: var(--surface); border: 1px solid var(--border); font-weight: 700; font-size: 0.86rem; }
+.split-input .place { width: 28px; height: 28px; border-radius: 9px; font-size: 0.8rem; flex-shrink: 0; }
+.split-input .input { flex: 1; width: 100%; min-width: 48px; padding: 7px 10px; text-align: right; -moz-appearance: textfield; appearance: textfield; }
+.split-input .input::-webkit-inner-spin-button, .split-input .input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.split-input em { font-style: normal; color: var(--muted); }
+.fee-notice { display: flex; gap: 14px; align-items: flex-start; padding: 16px; margin: 6px 0 0; border-radius: 16px; background: linear-gradient(160deg, rgba(139, 92, 246, 0.14), rgba(34, 211, 238, 0.05)); border: 1px solid rgba(139, 92, 246, 0.35); }
+.fee-notice.has-error { border-color: rgba(248, 113, 113, 0.6); }
+.fee-notice p { margin: 4px 0 12px; color: var(--muted); font-size: 0.9rem; }
+.fee-notice-icon { flex-shrink: 0; width: 52px; height: 52px; border-radius: 15px; display: grid; place-items: center; font-family: var(--font-display); font-size: 1rem; color: #fff; background: var(--grad); box-shadow: 0 10px 24px -12px rgba(139, 92, 246, 0.9); }
+.check { display: flex; gap: 10px; align-items: flex-start; font-weight: 700; font-size: 0.9rem; cursor: pointer; }
+.check input { width: 18px; height: 18px; margin-top: 1px; accent-color: var(--violet); flex-shrink: 0; }
+.prize-places { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.prize-places li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 7px 10px 7px 7px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); font-weight: 700; font-size: 0.88rem; }
+.prize-places .place { width: 28px; height: 28px; border-radius: 9px; font-size: 0.8rem; }
+.prize-places em { font-style: normal; color: var(--muted); font-size: 0.8rem; }
+.prize-places b { color: #fde68a; }
+.side-prizes { margin: 16px 0 6px; }
+.notice-prize { border-color: rgba(251, 191, 36, 0.4); background: linear-gradient(160deg, rgba(251, 191, 36, 0.14), rgba(244, 114, 182, 0.05)); }
+.notice-prize > .ico { color: var(--amber); }
+.wallet-hero { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 24px; padding: 26px; margin-bottom: 20px; background: linear-gradient(140deg, rgba(52, 211, 153, 0.12), rgba(34, 211, 238, 0.06) 45%, rgba(139, 92, 246, 0.1)); }
+.wallet-balance { display: flex; flex-direction: column; justify-content: center; gap: 8px; padding: 22px; border-radius: 20px; background: rgba(7, 8, 15, 0.5); border: 1px solid rgba(52, 211, 153, 0.35); }
+.wallet-balance small { color: #6ee7b7; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.wallet-balance b { font-family: var(--font-display); font-size: clamp(2.2rem, 5vw, 3.2rem); line-height: 1.05; background: linear-gradient(135deg, #6ee7b7, #67e8f9); -webkit-background-clip: text; background-clip: text; color: transparent; overflow-wrap: anywhere; }
+.wallet-balance span { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.9rem; font-weight: 600; }
+.wallet-form h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; }
+.wallet-form .muted.small { margin: 12px 0 0; }
+.money-in { color: var(--green); }
+.money-out { color: #fca5a5; }
+.standings td .btn-sm { margin-top: 6px; }
+@media (max-width: 960px) {
+  .wallet-hero { grid-template-columns: 1fr; padding: 18px; }
+}
