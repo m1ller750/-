@@ -49,6 +49,26 @@ for registration and PayPal · PayPal Checkout (sandbox).
    with the exact amount, currency and order reference, and only then admits the team (`paypal_admit_team`).
    If the team can no longer join (the last slot was taken meanwhile), the payment is **refunded automatically**.
 
+### AI (Gemini)
+
+The `api` Edge Function uses Google Gemini (key in `app_settings.gemini_api_key`, or the `GEMINI_API_KEY` secret;
+`gemini_model` / `gemini_models` put preferred models first, overloaded ones are skipped) for:
+
+- **Create with AI** — an organizer describes a tournament in any language and the AI fills in the whole form.
+- **Brackets** — the AI picks the format (single or double elimination, round robin, groups + playoffs), seeds the
+  teams by their results on TurniRUM and plans the timing (match length, breaks, parallel matches, rounds per day).
+  The bracket itself is built by a deterministic engine (`supabase/functions/api/engine.js`), so it is always valid;
+  without the AI the same engine works with standard rules.
+- **Rescheduling** — on the player's **Bracket** tab captains press **Reschedule**; when the captains of both teams
+  asked, the AI picks a new free time (no team plays twice at once, later matches move along) and everyone is notified.
+- **Reminders** — a `pg_cron` job calls the function every 10 minutes: AI-written reminders 24 h and 1 h before a
+  tournament, a reminder before each match, and the email queue.
+- **Find a team** — players keep a "looking for a team" card; the AI suggests teammates from the tournaments they
+  played (games, level, city) and players invite each other.
+
+Notifications appear in the bell on the site and go out by email through **Brevo** once `app_settings` has
+`brevo_api_key` and `email_sender` (a sender address verified in Brevo); `site_url` is the link used in emails.
+
 ### Where the money goes
 
 All entry fees are captured into the platform's PayPal business account. When the organizer finishes a paid
@@ -99,18 +119,22 @@ site/                     the web app (served as-is)
   index.html, css/, img/, vendor/supabase-*.js
   js/api.js               the only module that talks to Supabase
   js/main.js              router, session, navigation by role
-  js/views/*.js           pages: home, catalog, tournament + join, auth, organizer, player, creator, wallet
+  js/views/*.js           pages: home, catalog, tournament + join, auth, organizer, player, creator, wallet,
+                          bracket + team finder (play.js), notifications
+  js/bracket.js           the bracket board: matches by stage and round, results, Reschedule
   Dockerfile, Caddyfile, railway.json   optional static hosting on Railway
 supabase/migrations/      schema, RLS policies and RPC functions (wallets and prizes in the second migration)
 supabase/functions/api/   Edge Function: registration, creator password, PayPal orders and captures,
-                          prize payouts, withdrawals and refunds
+                          prize payouts, withdrawals, refunds, brackets, AI helpers and notifications
+release/netlify/index.html  the whole site in one file (for Netlify drop), rebuilt from site/
 site-tests/               browser tests (Playwright) against an in-memory mock of api.js
 ```
 
 ### Tests
 
 ```bash
-pip install playwright && python site-tests/run_ui_tests.py   # 56 UI checks with a mocked backend
+pip install playwright && python site-tests/run_ui_tests.py   # UI checks with a mocked backend
+node site-tests/engine_test.mjs                                 # random brackets of every format played to the end
 ```
 
 The database logic (permissions, RPC validation, PayPal admission and idempotency, settlement and wallets) was

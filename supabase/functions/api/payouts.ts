@@ -2,6 +2,7 @@
 // PayPal Payouts), plus refunds when an organizer removes a paid team or the creator deletes a tournament.
 import type { User } from 'npm:@supabase/supabase-js@2.117.3';
 import { admin, json, text } from './common.ts';
+import { notify } from './notify.ts';
 import { paypal, paypalConfig, requireConfigured, type PayPalConfig } from './paypal.ts';
 
 interface Payout {
@@ -17,6 +18,7 @@ interface Payout {
   attempts: number;
   paypal_batch_id: string | null;
   failure_reason: string | null;
+  recipient_id: string | null;
 }
 
 interface Payment {
@@ -135,6 +137,14 @@ export async function finishTournament(user: User, body: Record<string, unknown>
 
   const payouts = [];
   for (const p of await loadPayouts(settlement.payout_ids ?? [])) payouts.push(await sendPayout(cfg, p));
+  await notify(payouts.filter((p) => p.recipient_id).map((p) => ({
+    user_id: p.recipient_id!,
+    kind: 'prize' as const,
+    title: `You won ${p.place}${['st', 'nd', 'rd'][(p.place ?? 0) - 1] ?? 'th'} place in ${p.tournament_title}!`,
+    body: `Your prize of $${Number(p.amount).toFixed(2)} is on its way to the PayPal account ${p.receiver_email}. Congratulations!`,
+    link: '/player',
+    dedupe_key: `prize:${p.id}`,
+  })));
   return json({ settlement, payouts });
 }
 

@@ -1,4 +1,5 @@
 import * as api from '../api.js';
+import { bindBracket, bracketBoard, FORMAT_HINTS, FORMAT_LABELS } from '../bracket.js';
 import { MAX_PRIZE_PERCENT, PLATFORM_FEE } from '../config.js';
 import { PRIZE_PRESETS, split, splitOk, splitTotal, sumSplits, toCents, tournamentFinance } from '../finance.js';
 import { GAME_NAMES, gameStyle } from '../games.js';
@@ -62,6 +63,7 @@ export async function tournamentFormView({ params, profile, navigate }) {
     city: t?.city ?? '', start_date: start ? localDate(start) : '', start_time: start ? localTime(start) : '18:00',
     max_teams: t?.max_teams ?? 16, team_size: t?.team_size ?? 5, is_paid: t?.is_paid ? '1' : '0',
     entry_fee: t?.is_paid ? Number(t.entry_fee) : '', prize_percent: t?.prize_percent ?? 60, prize_note: t?.prize_note ?? '',
+    bracket_format: t?.bracket_format ?? '',
   };
   const lock = locked ? 'disabled' : '';
 
@@ -77,6 +79,20 @@ export async function tournamentFormView({ params, profile, navigate }) {
             <p class="muted">${editing ? 'Players see the changes right away.' : 'Fill in the details — the tournament appears in the catalog with registration open.'}</p>
           </div>
         </div>
+
+        ${editing ? '' : html`
+          <div class="card ai-panel reveal">
+            <div class="ai-panel-icon">${icon('sparkles', 22)}</div>
+            <div class="ai-panel-body">
+              <h3>Create with AI</h3>
+              <p class="muted">Describe the tournament in any language: the game, the date, the city or online, how many teams, the entry fee and the prizes. The AI fills in the whole form; you check it and press Create.</p>
+              <textarea class="textarea" rows="3" maxlength="2000" data-ai-prompt placeholder="CS2 tournament in Almaty for 8 teams 5v5 on November 15 in the evening, $20 entry, 70% to prizes, top 3 get paid"></textarea>
+              <div class="ai-panel-actions">
+                <button class="btn btn-primary" type="button" data-ai-draft>${icon('sparkles', 16)} Fill the form with AI</button>
+                <span class="muted small" data-ai-note></span>
+              </div>
+            </div>
+          </div>`}
 
         <form class="form-layout" novalidate data-tournament-form>
           <div class="form-main">
@@ -137,6 +153,13 @@ export async function tournamentFormView({ params, profile, navigate }) {
                   <input class="input" type="number" name="team_size" value="${v.team_size}" min="1" max="12" required>
                 </label>
               </div>
+              <label class="field" data-field="bracket_format">
+                <span class="label">Bracket format</span>
+                <select class="select" name="bracket_format">
+                  <option value="">Let the AI decide when the bracket is built</option>
+                  ${Object.entries(FORMAT_LABELS).map(([value, label]) => html`<option value="${value}" ${v.bracket_format === value ? 'selected' : ''}>${label} · ${FORMAT_HINTS[value]}</option>`)}
+                </select>
+              </label>
             </div>
 
             <div class="card card-pad">
@@ -301,6 +324,37 @@ export async function tournamentFormView({ params, profile, navigate }) {
 
       form.addEventListener('input', refresh);
       form.addEventListener('change', refresh);
+
+      root.querySelector('[data-ai-draft]')?.addEventListener('click', (event) => busy(event.currentTarget, async () => {
+        const prompt = root.querySelector('[data-ai-prompt]').value.trim();
+        const note = root.querySelector('[data-ai-note]');
+        if (prompt.length < 10) {
+          toast('Describe the tournament in a sentence or two.', 'error');
+          return;
+        }
+        note.textContent = 'The AI is setting up your tournament…';
+        try {
+          const { draft } = await api.aiDraftTournament(prompt);
+          const set = (name, value) => { if (form.elements[name] && value != null) form.elements[name].value = value; };
+          ['title', 'game', 'description', 'city', 'start_date', 'start_time', 'max_teams', 'team_size', 'prize_note'].forEach((name) => set(name, draft[name]));
+          set('bracket_format', draft.bracket_format ?? '');
+          form.querySelector(`#format-${draft.format === 'offline' ? 'offline' : 'online'}`).checked = true;
+          form.querySelector(`#paid-${draft.is_paid ? 1 : 0}`).checked = true;
+          if (draft.is_paid) {
+            set('entry_fee', draft.entry_fee);
+            set('prize_percent', draft.prize_percent);
+          }
+          prizeSplit = [...draft.prize_split];
+          renderSplit();
+          refresh();
+          showFieldErrors(form, {});
+          note.textContent = draft.assumptions ? `The AI assumed: ${draft.assumptions}` : 'Done. Check the details and create the tournament.';
+          toast('The AI filled in the form. Check it and press Create.', 'success');
+        } catch (error) {
+          note.textContent = '';
+          toast(error.message, 'error');
+        }
+      }));
       root.querySelectorAll('[data-fill-game]').forEach((button) => button.addEventListener('click', () => {
         form.elements.game.value = button.dataset.fillGame;
         refresh();
@@ -325,6 +379,7 @@ export async function tournamentFormView({ params, profile, navigate }) {
           is_paid: paid, entry_fee: paid ? Number(values.entry_fee) : 0,
           prize_percent: Number(values.prize_percent), prize_split: locked ? t.prize_split : prizeSplit,
           prize_note: values.prize_note.trim(), fee_ack: acked || Boolean(values.fee_ack),
+          bracket_format: values.bracket_format || null,
         };
         await busy(form.querySelector('[type=submit]'), async () => {
           try {
@@ -441,12 +496,15 @@ export async function manageView({ query, profile, reload }) {
   const wanted = Number(query.get('id'));
   const t = tournaments.find((item) => item.id === wanted) ?? tournaments[0];
   const settled = Boolean(t.settled_at);
-  const [teamRows, payments, prizePayouts] = await Promise.all([
+  const [teamRows, payments, prizePayouts, matches] = await Promise.all([
     api.getTeams(t.id),
     t.is_paid ? api.listPayments({ tournamentId: t.id, limit: 20 }) : Promise.resolve([]),
     settled ? withFreshPayouts(() => api.listPayouts({ tournamentId: t.id, kind: 'prize' })) : Promise.resolve([]),
+    api.getMatches(t.id),
   ]);
   prizePayouts.sort((a, b) => a.place - b.place);
+  const hasBracket = matches.length > 0;
+  const plan = t.bracket_settings ?? {};
   const teams = standings(teamRows);
   const fin = tournamentFinance(t);
   const slotsLeft = Math.max(0, t.max_teams - t.team_count);
@@ -535,16 +593,50 @@ export async function manageView({ query, profile, reload }) {
                   : emptyState('trophy', 'No PayPal prize payouts', 'No prize was sent automatically. Prizes you pay yourself are in your wallet.')}
               </div>` : ''}
 
+            <div class="card card-pad" id="bracket">
+              <div class="card-head">
+                <h3 class="card-title">${icon('swords', 18)} Bracket and schedule</h3>
+                ${hasBracket && !settled ? html`
+                  <div class="table-tools">
+                    ${matches.some((m) => m.status === 'finished') ? '' : html`<button class="btn btn-ghost btn-sm" type="button" data-rebuild>${icon('sparkles', 15)} Rebuild with AI</button>`}
+                    <button class="btn btn-ghost btn-sm" type="button" data-remove-bracket>${icon('trash', 15)} Remove</button>
+                  </div>` : ''}
+              </div>
+              ${hasBracket ? html`
+                ${plan.reason ? html`
+                  <div class="ai-note">
+                    ${icon(plan.ai ? 'sparkles' : 'info', 18)}
+                    <div>
+                      <b>${plan.ai ? 'AI plan' : 'Plan'}: ${FORMAT_LABELS[t.bracket_format] ?? ''}</b>
+                      <p>${plan.reason}</p>
+                      <small class="muted">${plan.match_minutes} min per match · ${plan.break_minutes} min breaks · up to ${plan.parallel} at once${plan.best_of > 1 ? ` · best of ${plan.best_of}` : ''}${plan.rounds_per_day ? ` · ${plan.rounds_per_day} rounds a day` : ''}</small>
+                    </div>
+                  </div>` : ''}
+                ${bracketBoard(matches, teamRows, { mode: settled ? 'view' : 'organizer' })}` : html`
+                <div class="bracket-builder">
+                  <p class="muted">The AI picks the format that fits your teams, seeds them by their results on TurniRUM and plans the whole schedule. Registration closes when the bracket is built, and every captain gets a notification.</p>
+                  <div class="bracket-builder-row">
+                    <select class="select" data-format aria-label="Bracket format">
+                      <option value="auto">Format: let the AI decide</option>
+                      ${Object.entries(FORMAT_LABELS).map(([value, label]) => html`<option value="${value}" ${t.bracket_format === value ? 'selected' : ''}>${label}</option>`)}
+                    </select>
+                    <button class="btn btn-primary" type="button" data-build ${teams.length < 2 || settled ? 'disabled' : ''}>${icon('sparkles', 16)} Build bracket with AI</button>
+                  </div>
+                  ${teams.length < 2 ? html`<div class="hint">${icon('info', 16)} <span>At least 2 teams are needed for a bracket.</span></div>` : ''}
+                </div>`}
+            </div>
+
             <div class="card card-pad" id="table">
               <div class="card-head">
                 <h3 class="card-title">${icon('table', 18)} Teams</h3>
-                ${teams.length && !settled ? html`
+                ${teams.length && !settled && !hasBracket ? html`
                   <div class="table-tools">
                     <label class="switch switch-sm"><input type="checkbox" data-auto-points checked><span class="track"></span><span>Auto points (W×3 + D)</span></label>
                     <button class="btn btn-primary btn-sm" type="button" data-save>${icon('save', 15)} Save table</button>
                   </div>` : ''}
               </div>
-              ${settled ? standingsTable(teams) : teams.length ? html`
+              ${hasBracket && !settled ? html`<p class="muted small">${icon('info', 14)} The standings are calculated from the bracket results.</p>` : ''}
+              ${settled || hasBracket ? standingsTable(teams) : teams.length ? html`
                 <div class="table-wrap">
                   <table class="standings standings-edit">
                     <thead><tr>
@@ -579,7 +671,7 @@ export async function manageView({ query, profile, reload }) {
                 </div>` : emptyState('users', 'No teams yet', 'Share the tournament link or add teams manually below.')}
             </div>
 
-            ${settled ? '' : html`
+            ${settled || hasBracket ? '' : html`
               <div class="card card-pad">
                 <h3 class="card-title">${icon('plus', 18)} Add a team manually</h3>
                 ${t.is_paid ? html`<p class="muted small">Teams you add are invited: they play without paying the entry fee.</p>` : ''}
@@ -674,6 +766,38 @@ export async function manageView({ query, profile, reload }) {
       }));
 
       bindResend(root, reload);
+      bindBracket(root, t.id, reload);
+
+      const build = (button, format) => busy(button, async () => {
+        toast('The AI is planning the bracket. This can take up to a minute…', 'info');
+        try {
+          const result = await api.buildBracket(t.id, format);
+          toast(`${FORMAT_LABELS[result.format]} is ready: ${plural(result.matches, 'match', 'matches')} scheduled.${result.ai ? '' : ' The AI was busy, so standard rules made the plan.'}`, 'success');
+          reload();
+        } catch (error) {
+          toast(error.message, 'error');
+        }
+      });
+      root.querySelector('[data-build]')?.addEventListener('click', (event) => build(event.currentTarget, root.querySelector('[data-format]').value));
+      root.querySelector('[data-rebuild]')?.addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        const ok = await confirmDialog({ title: 'Rebuild the bracket?', text: 'The AI plans a new bracket and schedule, and every captain is notified again.', ok: 'Rebuild', tone: 'primary' });
+        if (ok) build(button, 'auto');
+      });
+      root.querySelector('[data-remove-bracket]')?.addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        const ok = await confirmDialog({ title: 'Remove the bracket?', text: 'All matches and results of the bracket are deleted. The standings go back to zero.', ok: 'Remove' });
+        if (!ok) return;
+        await busy(button, async () => {
+          try {
+            await api.removeBracket(t.id);
+            toast('The bracket was removed.', 'info');
+            reload();
+          } catch (error) {
+            toast(error.message, 'error');
+          }
+        });
+      });
 
       root.querySelectorAll('[data-delete]').forEach((button) => button.addEventListener('click', async () => {
         const ok = await confirmDialog({

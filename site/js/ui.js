@@ -200,8 +200,11 @@ export function tournamentCard(t, joined = false) {
 // ------------------------------------------------------------- standings --
 
 export function standings(teams) {
+  // Places decided by the bracket (final, third-place match) come first.
+  const placed = (t) => t.final_place ?? Infinity;
   const sorted = [...teams].sort((a, b) =>
-    b.points - a.points
+    placed(a) - placed(b)
+    || b.points - a.points
     || (b.score_for - b.score_against) - (a.score_for - a.score_against)
     || b.score_for - a.score_for
     || b.wins - a.wins

@@ -1,4 +1,5 @@
 import * as api from '../api.js';
+import { bindBracket, bracketBoard, FORMAT_LABELS, votesByMatch } from '../bracket.js';
 import { split, tournamentFinance } from '../finance.js';
 import { gameStyle } from '../games.js';
 import {
@@ -51,9 +52,12 @@ export async function tournamentView({ params, profile, navigate, reload }) {
   const id = Number(params.id);
   const t = Number.isInteger(id) ? await api.getTournament(id) : null;
   if (!t) return notFound();
-  const teams = standings(await api.getTeams(id));
+  const [teamRows, matches] = await Promise.all([api.getTeams(id), api.getMatches(id)]);
+  const teams = standings(teamRows);
   const myTeam = profile?.role === 'participant' ? teams.find((team) => team.captain_id === profile.id) ?? null : null;
   const fin = tournamentFinance(t);
+  const myMatchIds = myTeam ? matches.filter((m) => m.team_a === myTeam.id || m.team_b === myTeam.id).map((m) => m.id) : [];
+  const votes = votesByMatch(myMatchIds.length ? await api.getVotes(myMatchIds) : []);
 
   return {
     title: t.title,
@@ -80,6 +84,14 @@ export async function tournamentView({ params, profile, navigate, reload }) {
               <div class="card card-pad reveal">
                 <h3 class="card-title">${icon('info', 18)} About</h3>
                 <p class="prewrap">${t.description}</p>
+              </div>` : ''}
+            ${matches.length ? html`
+              <div class="card card-pad reveal" id="bracket">
+                <div class="card-head">
+                  <h3 class="card-title">${icon('swords', 18)} Bracket</h3>
+                  <span class="muted small">${FORMAT_LABELS[t.bracket_format] ?? ''}${t.bracket_settings?.ai ? ' · planned by AI' : ''}</span>
+                </div>
+                ${bracketBoard(matches, teamRows, { mode: myTeam ? 'player' : 'view', myTeamIds: new Set(myTeam ? [myTeam.id] : []), votes, userId: profile?.id })}
               </div>` : ''}
             <div class="card card-pad reveal" id="table">
               <div class="card-head">
@@ -126,6 +138,7 @@ export async function tournamentView({ params, profile, navigate, reload }) {
         </div>
       </section>`,
     mount(root) {
+      bindBracket(root, t.id, reload);
       root.querySelector('[data-leave]')?.addEventListener('click', async (event) => {
         const ok = await confirmDialog({ title: 'Leave the tournament?', text: `Team “${myTeam.name}” will be removed from the tournament.`, ok: 'Leave' });
         if (!ok) return;

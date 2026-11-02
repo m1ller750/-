@@ -1,5 +1,9 @@
 // In-memory stand-in for site/js/api.js used by the browser tests (same exports, no network).
 // Served in place of /js/api.js, so it can reuse the site's own money and ranking helpers.
+import {
+  bracketStandings, buildBracket as buildEngine, FORMATS, formatsFor, moveMatch as moveEngine, normalizeSettings,
+  reportResult as reportEngine, rescheduleOptions,
+} from './engine.js';
 import { prizeAmounts, split, toCents } from './finance.js';
 import { standings } from './ui.js';
 
@@ -33,7 +37,11 @@ const db = {
   payments: [],
   payouts: [],
   entries: [],
-  seq: { t: 0, team: 0, pay: 0, payout: 0, entry: 0 },
+  matches: [],
+  votes: [],
+  notifications: [],
+  cards: new Map(),
+  seq: { t: 0, team: 0, pay: 0, payout: 0, entry: 0, match: 0, note: 0 },
 };
 let session = null;
 const listeners = [];
@@ -42,6 +50,7 @@ function addTournament(org, data) {
   const t = {
     id: ++db.seq.t, organizer_id: org, description: '', format: 'online', city: '', prize_note: '', status: 'registration',
     is_paid: false, entry_fee: 0, prize_percent: 60, prize_split: [50, 30, 20], fee_ack_at: null, settled_at: null,
+    bracket_format: null, bracket_settings: {},
     created_at: new Date(now - db.seq.t * 3600_000).toISOString(), ...data,
   };
   if (t.is_paid) t.fee_ack_at = t.created_at;
@@ -53,7 +62,8 @@ function insertTeam(tid, name, extra = {}) {
   const team = {
     id: ++db.seq.team, tournament_id: tid, captain_id: null, name, members: ['Ace', 'Nova', 'Rin'].slice(0, 2),
     wins: 0, draws: 0, losses: 0, score_for: 0, score_against: 0, points: 0,
-    is_paid: false, payment_method: null, paid_amount: 0, paid_at: null, prize_email: null, created_at: new Date().toISOString(), ...extra,
+    is_paid: false, payment_method: null, paid_amount: 0, paid_at: null, prize_email: null, final_place: null,
+    created_at: new Date().toISOString(), ...extra,
   };
   db.teams.push(team);
   return team;
@@ -84,6 +94,8 @@ paidTeam(cup, 'Steppe Wolves');
   wins: 5 - i, losses: i, score_for: 10 - i, score_against: 2 + i, points: (5 - i) * 3, captain_id: i === 0 ? 'u-p2' : null,
 }));
 insertTeam(val.id, 'Tengri Force', { captain_id: 'u-p1', members: ['Alex Carter', 'Mirage'] });
+insertTeam(val.id, 'Aurora', { captain_id: 'u-p2', members: ['Dana Lee'] });
+insertTeam(val.id, 'Qyran Five', { members: ['Arman'] });
 
 // ---- helpers ----
 const delay = (value) => new Promise((resolve) => setTimeout(() => resolve(structuredClone(value)), 40));
@@ -340,6 +352,122 @@ export function withdraw(wallet, amount, email) {
   const payout = addPayout({ kind: 'withdrawal', wallet, owner_id: owner, requested_by: user.id, receiver_email: email.toLowerCase(), amount: cents / 100 });
   addEntry(wallet, owner, -cents, 'withdrawal', null, `Withdrawal to ${payout.receiver_email}`, payout.id);
   return delay({ payout });
+}
+
+// ---- brackets ----
+const teamsOf = (tid) => db.teams.filter((x) => x.tournament_id === tid);
+const matchesOf = (tid) => db.matches.filter((m) => m.tournament_id === tid).sort((a, b) => a.phase - b.phase || a.position - b.position);
+function note(userId, kind, title, body, link) {
+  if (userId) db.notifications.push({ id: ++db.seq.note, user_id: userId, kind, title, body, link, read_at: null, created_at: new Date().toISOString() });
+}
+function applyStats(t) {
+  for (const s of bracketStandings(matchesOf(t.id), teamsOf(t.id).map((x) => x.id), t.bracket_settings.places ?? {})) {
+    const { id, ...stats } = s;
+    Object.assign(db.teams.find((x) => x.id === id), stats);
+  }
+}
+export const getMatches = (tid) => delay(matchesOf(tid));
+export const teamMatches = (ids) => delay(db.matches.filter((m) => ids.includes(m.team_a) || ids.includes(m.team_b)));
+export const getVotes = (ids) => delay(db.votes.filter((v) => ids.includes(v.match_id)));
+export function buildBracket(tid, format) {
+  const t = notSettled(owned(tid));
+  const teams = teamsOf(tid);
+  if (teams.length < 2) return fail('At least 2 teams are needed to build a bracket.');
+  if (matchesOf(tid).some((m) => m.status === 'finished')) return fail('Results are already in.');
+  const chosen = FORMATS.includes(format) ? format : teams.length <= 6 && teams.length >= 3 ? 'round_robin' : 'single_elimination';
+  if (!formatsFor(teams.length).includes(chosen)) return fail('This format needs more teams.');
+  const start = new Date(Math.max(Date.parse(t.start_at), Date.now() + 30 * 60_000)).toISOString();
+  const { matches, settings } = buildEngine(chosen, teams.map((x) => x.id), { parallel: 2 }, start, teams);
+  db.matches = db.matches.filter((m) => m.tournament_id !== tid)
+    .concat(matches.map((m) => ({ ...m, id: ++db.seq.match, tournament_id: tid, reschedule_count: 0 })));
+  Object.assign(t, { bracket_format: chosen, bracket_settings: { ...settings, reason: 'Test plan: fits the number of teams.', ai: true } });
+  if (t.status === 'registration') t.status = 'active';
+  applyStats(t);
+  teams.forEach((team) => note(team.captain_id, 'bracket', `The bracket of ${t.title} is ready`, 'Open the bracket to see your first match.', `/t/${tid}`));
+  return delay({ format: chosen, reason: t.bracket_settings.reason, ai: true, matches: matches.filter((m) => m.status !== 'bye').length });
+}
+export function reportMatch(tid, key, a, b) {
+  const t = notSettled(owned(tid));
+  const all = matchesOf(tid);
+  try {
+    reportEngine(all, key, a, b, teamsOf(tid));
+  } catch (error) {
+    return fail(error.message);
+  }
+  applyStats(t);
+  return delay({ ok: true });
+}
+export function moveMatch(tid, key, iso) {
+  const t = notSettled(owned(tid));
+  const moved = moveEngine(matchesOf(tid), key, iso, normalizeSettings(t.bracket_format, teamsOf(tid).length, t.bracket_settings));
+  return delay({ moved });
+}
+export function removeBracket(tid) {
+  const t = notSettled(owned(tid));
+  db.matches = db.matches.filter((m) => m.tournament_id !== tid);
+  teamsOf(tid).forEach((team) => Object.assign(team, { wins: 0, draws: 0, losses: 0, score_for: 0, score_against: 0, points: 0, final_place: null }));
+  t.bracket_settings = {};
+  return delay({ removed: true });
+}
+export function voteReschedule(matchId) {
+  const m = db.matches.find((x) => x.id === matchId);
+  const team = db.teams.find((x) => (x.id === m.team_a || x.id === m.team_b) && x.captain_id === session);
+  if (!team) return fail('Only the captains of the two teams can ask to move this match.');
+  if (!db.votes.some((v) => v.match_id === matchId && v.user_id === session)) db.votes.push({ match_id: matchId, user_id: session, team_id: team.id });
+  const votes = new Set(db.votes.filter((v) => v.match_id === matchId).map((v) => v.team_id)).size;
+  const needed = db.teams.filter((x) => (x.id === m.team_a || x.id === m.team_b) && x.captain_id).length;
+  if (votes < needed) return delay({ votes, needed, complete: false, rescheduled: null });
+  const t = db.tournaments.find((x) => x.id === m.tournament_id);
+  const s = normalizeSettings(t.bracket_format, teamsOf(t.id).length, t.bracket_settings);
+  const [option] = rescheduleOptions(matchesOf(t.id), m.match_key, s, new Date().toISOString());
+  const moved = moveEngine(matchesOf(t.id), m.match_key, option.scheduled_at, s);
+  m.reschedule_count += 1;
+  db.votes = db.votes.filter((v) => v.match_id !== matchId);
+  const message = 'Both teams asked, so the AI moved the match to the next free time.';
+  db.teams.filter((x) => x.id === m.team_a || x.id === m.team_b).forEach((x) => note(x.captain_id, 'reschedule', `${m.label} moved`, message, `/t/${t.id}`));
+  return delay({ votes, needed, complete: true, rescheduled: { scheduled_at: option.scheduled_at, message, moved } });
+}
+
+// ---- AI and team finder ----
+export function aiDraftTournament() {
+  const d = new Date(Date.now() + 13 * day);
+  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return delay({ draft: {
+    title: 'Almaty CS2 Autumn Clash', game: 'Counter-Strike 2', description: 'Single elimination, Bo1 matches, final Bo3.',
+    format: 'offline', city: 'Almaty', start_date: date, start_time: '18:00', max_teams: 8, team_size: 5, is_paid: true,
+    entry_fee: 20, prize_percent: 70, prize_split: [50, 30, 20], prize_note: '', bracket_format: 'single_elimination',
+    assumptions: 'Evening start at 18:00',
+  } });
+}
+export function aiTeammates() {
+  const picks = db.users.filter((u) => u.role === 'participant' && u.id !== session).map((u) => ({
+    user_id: u.id, username: u.username, full_name: u.full_name, games: ['Valorant'], cities: [], tournaments: 1,
+    wins: 2, draws: 0, losses: 1, titles: 0, looking: db.cards.get(u.id)?.looking ?? false, note: '', contact: '',
+    match: 88, reason: 'You both play Valorant and finished in the top half.',
+  }));
+  return delay({ ai: true, picks });
+}
+export function inviteTeammate(userId, message) {
+  const card = db.cards.get(session);
+  if (!card?.contact) return fail('Add your contact (Discord, Telegram…) to your card first, so the player can reach you.');
+  note(userId, 'invite', `${me().full_name} wants to team up with you`, `${message}\n\nReach them here: ${card.contact}`, '/team-finder');
+  return delay({ sent: true });
+}
+export const getPlayerCard = (uid) => delay(db.cards.get(uid) ?? null);
+export const lookingPlayers = () => delay([...db.cards.values()].filter((c) => c.looking).map((c) => ({
+  ...c, profile: profileOf(db.users.find((u) => u.id === c.user_id)),
+})));
+export function savePlayerCard(card) {
+  db.cards.set(session, { ...card, user_id: session, updated_at: new Date().toISOString() });
+  return delay(null);
+}
+
+// ---- notifications ----
+export const listNotifications = () => delay(db.notifications.filter((n) => n.user_id === session).reverse());
+export const unreadCount = () => delay(db.notifications.filter((n) => n.user_id === session && !n.read_at).length);
+export function markNotificationsRead() {
+  db.notifications.filter((n) => n.user_id === session).forEach((n) => { n.read_at = n.read_at ?? new Date().toISOString(); });
+  return delay(null);
 }
 
 // ---- creator ----

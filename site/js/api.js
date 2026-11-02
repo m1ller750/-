@@ -19,7 +19,7 @@ function check({ data, error, count }, withCount = false) {
 }
 
 const TEAM_COLUMNS = 'id, tournament_id, captain_id, name, members, wins, draws, losses, score_for, score_against, '
-  + 'points, is_paid, payment_method, paid_amount, paid_at, created_at';
+  + 'points, is_paid, payment_method, paid_amount, paid_at, created_at, final_place';
 
 async function sha256Hex(value) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
@@ -185,6 +185,76 @@ export const refreshPayouts = async () => (await callApi('payouts-refresh')).upd
 export const resendPayout = (payoutId) => callApi('payout-resend', { payout_id: payoutId });
 
 export const withdraw = (wallet, amount, email) => callApi('wallet-withdraw', { wallet, amount, email });
+
+// ------------------------------------------------------------- brackets --
+
+export async function getMatches(tournamentId) {
+  return check(await sb.from('matches').select('*').eq('tournament_id', tournamentId).order('phase').order('position'));
+}
+
+// Matches of the given teams across tournaments (a player's schedule).
+export async function teamMatches(teamIds) {
+  if (!teamIds.length) return [];
+  const list = teamIds.join(',');
+  return check(await sb.from('matches').select('*').or(`team_a.in.(${list}),team_b.in.(${list})`).order('scheduled_at'));
+}
+
+export async function getVotes(matchIds) {
+  if (!matchIds.length) return [];
+  return check(await sb.from('reschedule_votes').select('match_id, user_id, team_id').in('match_id', matchIds));
+}
+
+export const buildBracket = (tournamentId, format) => callApi('bracket-build', { tournament_id: tournamentId, format });
+
+export const reportMatch = (tournamentId, matchKey, scoreA, scoreB) =>
+  callApi('bracket-result', { tournament_id: tournamentId, match_key: matchKey, score_a: scoreA, score_b: scoreB });
+
+export const moveMatch = (tournamentId, matchKey, scheduledAt) =>
+  callApi('bracket-move', { tournament_id: tournamentId, match_key: matchKey, scheduled_at: scheduledAt });
+
+export const removeBracket = (tournamentId) => callApi('bracket-remove', { tournament_id: tournamentId });
+
+export const voteReschedule = (matchId) => callApi('reschedule-vote', { match_id: matchId });
+
+// ------------------------------------------------------------- AI, team finder --
+
+export const aiDraftTournament = (prompt) => {
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return callApi('ai-draft-tournament', { prompt, today });
+};
+
+export const aiTeammates = () => callApi('ai-teammates');
+
+export const inviteTeammate = (userId, message) => callApi('team-invite', { user_id: userId, message });
+
+export async function getPlayerCard(userId) {
+  return check(await sb.from('player_cards').select('*').eq('user_id', userId).maybeSingle());
+}
+
+export async function lookingPlayers() {
+  return check(await sb.from('player_cards').select('*, profile:profiles(username, full_name)').eq('looking', true)
+    .order('updated_at', { ascending: false }).limit(60));
+}
+
+export async function savePlayerCard({ looking, games, note, contact }) {
+  check(await sb.rpc('save_player_card', { p_looking: looking, p_games: games, p_note: note, p_contact: contact }));
+}
+
+// --------------------------------------------------------- notifications --
+
+export async function listNotifications(limit = 60) {
+  return check(await sb.from('notifications').select('id, kind, title, body, link, read_at, created_at')
+    .order('created_at', { ascending: false }).limit(limit));
+}
+
+export async function unreadCount() {
+  return check(await sb.from('notifications').select('id', { count: 'exact', head: true }).is('read_at', null), true) ?? 0;
+}
+
+export async function markNotificationsRead(ids = null) {
+  check(await sb.rpc('mark_notifications_read', { p_ids: ids }));
+}
 
 // --------------------------------------------------------------- creator --
 

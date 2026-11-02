@@ -5,6 +5,8 @@ import { avatar, html, icon, loader, messagePage, notFound, toast } from './ui.j
 import { loginView, registerView } from './views/auth.js';
 import { creatorDashboardView, creatorPaymentsView, creatorTournamentsView, creatorUsersView } from './views/creator.js';
 import { catalogView } from './views/catalog.js';
+import { notificationsView } from './views/notifications.js';
+import { bracketPageView, teamFinderView } from './views/play.js';
 import { homeView } from './views/home.js';
 import { businessView, manageView, tournamentFormView } from './views/organizer.js';
 import { tablesView } from './views/player.js';
@@ -25,6 +27,9 @@ const ROUTES = [
   ['/organizer/business', businessView, ['organizer']],
   ['/wallet', walletView, ['organizer', 'creator']],
   ['/player', tablesView, ['participant']],
+  ['/bracket', bracketPageView, ['participant']],
+  ['/team-finder', teamFinderView, ['participant']],
+  ['/notifications', notificationsView, ['organizer', 'participant', 'creator']],
   ['/creator', creatorDashboardView, ['creator']],
   ['/creator/tournaments', creatorTournamentsView, ['creator']],
   ['/creator/payments', creatorPaymentsView, ['creator']],
@@ -43,7 +48,11 @@ const NAV = {
     ['/organizer/business', 'pie', 'Business model', ['/organizer/business']],
     ['/wallet', 'wallet', 'Wallet', ['/wallet']],
   ],
-  participant: [['/player', 'table', 'My tables', ['/player']]],
+  participant: [
+    ['/player', 'table', 'My tables', ['/player']],
+    ['/bracket', 'swords', 'Bracket', ['/bracket']],
+    ['/team-finder', 'users', 'Find a team', ['/team-finder']],
+  ],
   creator: [
     ['/creator', 'pie', 'Business model', ['/creator']],
     ['/creator/tournaments', 'shield', 'Manage', ['/creator/tournaments']],
@@ -173,12 +182,28 @@ function renderNav(path) {
           <small class="role-tag role-${user.role}">${user.role === 'creator' ? icon('crown', 12) : ''}${ROLE_LABELS[user.role]}</small>
         </span>
       </div>
+      <a class="icon-btn bell" href="#/notifications" title="Notifications" aria-label="Notifications">${icon('bell', 18)}<span class="bell-count" data-bell-count hidden></span></a>
       <button class="icon-btn" type="button" data-logout title="Sign out" aria-label="Sign out">${icon('logout', 18)}</button>`
     : html`
       <a class="btn btn-ghost btn-sm" href="#/login">${icon('login', 16)} Sign in</a>
       <a class="btn btn-primary btn-sm" href="#/register">Sign up</a>`).toString();
   document.querySelector('[data-logout]')?.addEventListener('click', logout);
+  if (user) updateBell();
 }
+
+// Unread notifications in the bell.
+async function updateBell() {
+  try {
+    const count = await api.unreadCount();
+    const badge = document.querySelector('[data-bell-count]');
+    if (!badge) return;
+    badge.hidden = !count;
+    badge.textContent = count > 9 ? '9+' : String(count);
+  } catch (error) {
+    console.warn('notifications', error);
+  }
+}
+window.addEventListener('turnirum:notifications', updateBell);
 
 function closeMobileNav() {
   document.querySelector('[data-nav]')?.classList.remove('is-open');

@@ -16,6 +16,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SITE = ROOT / "site"
 MOCK = (ROOT / "site-tests" / "mock-api.js").read_text(encoding="utf-8")
 FAKE_PAYPAL = (ROOT / "site-tests" / "fake-paypal.js").read_text(encoding="utf-8")
+ENGINE = (ROOT / "supabase" / "functions" / "api" / "engine.js").read_text(encoding="utf-8")
 SHOTS = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else None
 CHROMIUM = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
 
@@ -42,6 +43,7 @@ class Session:
         self.page.on("pageerror", lambda e: self.errors.append(f"pageerror: {e}"))
         self.page.on("console", lambda m: self.errors.append(f"console.{m.type}: {m.text}") if m.type == "error" else None)
         self.page.route("**/js/api.js", lambda route: route.fulfill(body=MOCK, content_type="text/javascript"))
+        self.page.route("**/js/engine.js", lambda route: route.fulfill(body=ENGINE, content_type="text/javascript"))
         self.page.route("https://www.paypal.com/sdk/js**", lambda route: route.fulfill(body=FAKE_PAYPAL, content_type="text/javascript"))
 
     def go(self, hash_path):
@@ -171,6 +173,15 @@ def main():
         s.login("arena@demo.dev")
         check("organizer lands on my tournaments", "#/organizer" in page.url)
         s.go("/organizer/new")
+        page.fill("[data-ai-prompt]", "CS2 tournament in Almaty for 8 teams, $20 entry, 70% to prizes, top 3 paid")
+        page.click("[data-ai-draft]")
+        page.wait_for_selector(".toast-text:has-text('filled in the form')", state="attached")
+        check("AI fills the tournament form", page.input_value("input[name=title]") == "Almaty CS2 Autumn Clash"
+              and page.input_value("input[name=city]") == "Almaty" and page.locator("[data-split-inputs] input").count() == 3)
+        check("AI picks the bracket format", page.input_value("select[name=bracket_format]") == "single_elimination")
+        s.shot("org_ai_draft")
+        s.go("/")
+        s.go("/organizer/new")
         page.fill("input[name=title]", "Autumn Clash")
         page.click("[data-fill-game='Valorant']")
         page.fill("input[name=start_date]", "2030-05-20")
@@ -246,6 +257,63 @@ def main():
         s.shot("org_business")
         s.go("/creator")
         check("organizer cannot open creator panel", page.locator(".error-code").inner_text() == "403")
+        s.logout()
+
+        # The AI builds a bracket; the organizer enters a result
+        s.login("league@demo.dev")
+        s.go("/organizer?id=3")
+        page.click("[data-build]")
+        page.wait_for_selector(".toast-text:has-text('is ready')", state="attached")
+        s.settle()
+        check("AI bracket is built", page.locator("#bracket .m-card").count() == 3 and page.locator(".ai-note").count() == 1)
+        check("standings come from the bracket", page.locator("[data-save]").count() == 0)
+        card = page.locator("#bracket .m-card:has([data-report])").first
+        card.locator("[data-score=a]").fill("13")
+        card.locator("[data-score=b]").fill("9")
+        card.locator("[data-report]").click()
+        page.wait_for_selector(".toast-text:has-text('Result saved')", state="attached")
+        s.settle()
+        check("result is recorded", page.locator("#bracket .m-card.m-finished").count() == 1)
+        s.shot("org_bracket")
+        s.logout()
+
+        # Both captains ask to move their match
+        s.login("player1@demo.dev")
+        s.go("/bracket")
+        mine = page.locator(".next-match", has_text="Aurora").locator("[data-reschedule]")
+        check("player sees the Reschedule button", mine.count() == 1 and "0/2" in mine.inner_text())
+        mine.click()
+        page.wait_for_selector(".toast-text:has-text('Your request is in')", state="attached")
+        s.settle()
+        check("first vote is counted", "1/2" in page.locator(".next-match", has_text="Aurora").locator("[data-reschedule]").inner_text())
+        s.shot("player_bracket")
+        s.go("/team-finder")
+        page.click("form[data-card] .switch")
+        page.fill("form[data-card] input[name=games]", "Valorant, CS2")
+        page.fill("form[data-card] input[name=contact]", "discord: alex#1234")
+        page.click("form[data-card] button[type=submit]")
+        page.wait_for_selector(".toast-text:has-text('card is saved')", state="attached")
+        s.settle()
+        page.click("[data-ai-mates]")
+        page.wait_for_selector("[data-mates] .mate-card")
+        check("AI suggests teammates with reasons", page.locator("[data-mates] .mate-reason").count() >= 1)
+        page.locator("[data-mates] .mate-card", has_text="Dana Lee").locator("[data-invite] button").click()
+        page.wait_for_selector(".toast-text:has-text('Invitation sent')", state="attached")
+        s.shot("team_finder")
+        s.logout()
+        s.login("player2@demo.dev")
+        check("bell shows unread notifications", page.locator("[data-bell-count]").is_visible())
+        s.go("/bracket")
+        page.locator(".next-match", has_text="Tengri Force").locator("[data-reschedule]").click()
+        page.wait_for_selector(".toast-text:has-text('Moved')", state="attached")
+        s.settle()
+        check("match is moved after both votes", "moved" in page.locator(".next-match", has_text="Tengri Force").inner_text())
+        s.go("/notifications")
+        check("notifications list invite and move", page.locator(".note", has_text="wants to team up").count() == 1
+              and page.locator(".note", has_text="moved").count() >= 1)
+        s.shot("notifications")
+        s.go("/t/3")
+        check("tournament page shows the bracket", page.locator("#bracket .m-card").count() == 3)
         s.logout()
 
         # The winning captain sees the prize

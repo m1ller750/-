@@ -63,3 +63,18 @@ export function safeEqual(a: string, b: string): boolean {
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
 }
+
+// Server-only settings from app_settings (keys, sender addresses, the site address).
+export async function settings(keys: string[]): Promise<Record<string, string>> {
+  const { data, error } = await admin.from('app_settings').select('key, value').in('key', keys);
+  if (error) console.error('app_settings read failed', error);
+  return Object.fromEntries((data ?? []).map((row) => [row.key, String(row.value ?? '').trim()]));
+}
+
+// An error whose message is shown to the user as is.
+export class UserError extends Error {}
+
+const DATE_FMT = new Intl.DateTimeFormat('en-US', {
+  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC',
+});
+export const utcTime = (iso: string | null | undefined) => (iso ? `${DATE_FMT.format(new Date(iso))} UTC` : 'a time to be announced');

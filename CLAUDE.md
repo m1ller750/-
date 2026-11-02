@@ -7,6 +7,10 @@
   — после каждого изменения сайта запушь и дай ссылку с новым SHA.
 - Ключи PayPal sandbox для сайта: секреты Edge Function `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET`
   или строки `paypal_client_id` / `paypal_client_secret` в таблице `app_settings` (читает только сервер).
+- ИИ на сайте — Gemini (ключ `gemini_api_key` в `app_settings`); модели часто перегружены, поэтому в коде цепочка
+  запасных моделей. Почта уведомлений — Brevo (`brevo_api_key`, `email_sender` в `app_settings`).
+- Пользователь хочет выкладывать сайт на Netlify одним файлом: после изменений сайта пересобирай
+  `release/netlify/index.html` (esbuild-бандл `site/js/main.js` + CSS + supabase-js внутри) и присылай файл.
 - Программы на Python (десктоп): собирай Windows `.exe` (PyInstaller, `--onefile`) через GitHub Actions
   на `windows-latest`; workflow кладёт файл в `release/`, оттуда присылай сам файл в чат
   (не ссылку на страницу сборки — пользователь её не понимает).

@@ -1,8 +1,12 @@
-// TurniRUM backend actions that need the secret key: accounts, PayPal payments, prizes, wallets and refunds.
+// TurniRUM backend actions that need the secret key: accounts, PayPal payments, prizes, wallets, refunds,
+// brackets, AI helpers (Gemini) and notifications.
 // Deployed with verify_jwt = false; actions that need a user check the access token themselves.
 import type { User } from 'npm:@supabase/supabase-js@2.117.3';
 import { claimCreator, register } from './account.ts';
-import { CORS_HEADERS, json, readJson, userFromRequest } from './common.ts';
+import { draftTournament, suggestTeammates, teamInvite } from './ai.ts';
+import { buildBracketAction, moveMatchAction, removeBracketAction, reportResultAction, rescheduleVoteAction } from './bracket.ts';
+import { CORS_HEADERS, json, readJson, userFromRequest, UserError } from './common.ts';
+import { cronTick } from './notify.ts';
 import { deleteTournament, finishTournament, refreshPayouts, refundTeam, resendPayout, withdraw } from './payouts.ts';
 import { captureOrder, createOrder, publicConfig } from './paypal.ts';
 
@@ -16,6 +20,14 @@ const USER_ACTIONS: Record<string, (user: User, body: Record<string, unknown>) =
   'wallet-withdraw': withdraw,
   'refund-team': refundTeam,
   'delete-tournament': deleteTournament,
+  'bracket-build': buildBracketAction,
+  'bracket-result': reportResultAction,
+  'bracket-move': moveMatchAction,
+  'bracket-remove': removeBracketAction,
+  'reschedule-vote': rescheduleVoteAction,
+  'ai-draft-tournament': draftTournament,
+  'ai-teammates': suggestTeammates,
+  'team-invite': teamInvite,
 };
 
 Deno.serve(async (req) => {
@@ -32,6 +44,8 @@ Deno.serve(async (req) => {
         return await claimCreator(req, body);
       case 'paypal-config':
         return await publicConfig();
+      case 'cron-tick':
+        return await cronTick(req);
       default: {
         const action = String(body.action);
         if (!Object.hasOwn(USER_ACTIONS, action)) return json({ error: 'Unknown action.' }, 400);
@@ -41,6 +55,7 @@ Deno.serve(async (req) => {
       }
     }
   } catch (error) {
+    if (error instanceof UserError) return json({ error: error.message }, 400);
     console.error(error);
     return json({ error: 'Something went wrong on our side. Please try again.' }, 500);
   }
