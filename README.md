@@ -1,15 +1,39 @@
 # 🏆 TurniRUM
 
-An online tournament platform. Organizers run free and paid tournaments and keep live standings,
-players find tournaments with filters and pay entry fees with **PayPal** (checked automatically on the server),
-winners get their prizes on PayPal automatically, and the platform creator earns 10% of every paid tournament.
+**Tournaments that run themselves.** TurniRUM is an open-source tournament platform for esports and sports:
+organizers host free or paid tournaments, players register teams and pay entry fees with **PayPal**,
+**Google Gemini** picks the format, seeds the teams and builds the schedule, and prizes are paid to the winners'
+PayPal accounts automatically. The platform earns 10% of every paid tournament.
 
-The repository contains two versions:
+| | |
+|---|---|
+| 🌐 **Live site** | [raw.githack.com/m1ller750/TurniRUM/main/site/index.html](https://raw.githack.com/m1ller750/TurniRUM/main/site/index.html) (PayPal sandbox — no real money) |
+| 📖 **Guide** | [docs/GUIDE.md](docs/GUIDE.md) — also on the site under **Guide** |
+| 🎬 **Demo video** | [docs/demo/TurniRUM-demo.mp4](docs/demo/TurniRUM-demo.mp4) (≈3 min, English voice-over and subtitles) |
+| 🧰 **Built with** | [AI models, APIs and tools](docs/GUIDE.md#built-with-ai-models-apis-and-tools) |
+| ⚖️ **License** | [MIT](LICENSE) |
 
-| Version | Folder | Language | How to use |
-|---------|--------|----------|------------|
-| **Web app** (main) | `site/`, `supabase/` | English | open the link below, backend on Supabase |
-| Desktop app | `turnirum/`, `launcher.py` | Russian | `release/TurniRUM.exe`, double-click |
+## The problem
+
+Amateur and semi-pro tournaments are still run with spreadsheets and group chats. Organizers draw brackets by hand,
+juggle match times in endless messages and collect entry fees through screenshots of bank transfers. Players struggle
+to find a team, and prize money arrives late — or never. Nobody can see where the entry fees went.
+
+## The solution
+
+- **AI does the organizing.** Describe a tournament in one sentence and the AI fills in the whole form. When
+  registration closes, it chooses the bracket format, seeds the teams and plans the schedule. When both captains ask
+  to move a match, it finds a new free time. It writes the reminders and suggests teammates.
+- **PayPal handles the money.** Entry fees are paid with PayPal (account or card) and verified on the server before a
+  team is admitted. At the end, prizes go to the winners' PayPal with PayPal Payouts, 10% goes to the platform and the
+  organizer withdraws the rest. Refunds are automatic.
+- **Everyone sees the same truth.** Live brackets, standings, notifications and a ledger of every payment.
+
+**Who benefits:** organizers save hours and get paid fairly; players get clear brackets, fair rescheduling and
+guaranteed prizes; clubs, schools and communities can run paid events transparently; the platform earns a simple,
+visible 10% fee.
+
+The repository also has an offline desktop version (Russian, Flask + SQLite) — see [the end of this file](#desktop-app-russian-flask--sqlite).
 
 ---
 
@@ -19,8 +43,8 @@ The repository contains two versions:
 Supabase Postgres + Row Level Security + RPC functions · Supabase Auth · one Supabase Edge Function (`api`)
 for registration and PayPal · PayPal Checkout (sandbox).
 
-**Live:** the site is served straight from this public repository by githack —
-`https://rawcdn.githack.com/m1ller750/-/<commit-sha>/site/index.html` (a link per commit, it never changes).
+**Hosting:** `site/` is a static site — it can be served as is (githack, any static host), or as one file:
+`python tools/build_netlify.py` builds `release/netlify/index.html` with everything inline for Netlify.
 `site/` also has a `Dockerfile`, `Caddyfile` and `railway.json` for hosting it on Railway.
 
 ### Roles
@@ -126,7 +150,9 @@ site/                     the web app (served as-is)
 supabase/migrations/      schema, RLS policies and RPC functions (wallets and prizes in the second migration)
 supabase/functions/api/   Edge Function: registration, creator password, PayPal orders and captures,
                           prize payouts, withdrawals, refunds, brackets, AI helpers and notifications
-release/netlify/index.html  the whole site in one file (for Netlify drop), rebuilt from site/
+release/netlify/index.html  the whole site in one file (for Netlify), rebuilt by tools/build_netlify.py
+docs/GUIDE.md             user guide + the list of AI models, APIs and tools
+docs/demo/                demo video with English voice-over and subtitles (.srt)
 site-tests/               browser tests (Playwright) against an in-memory mock of api.js
 ```
 

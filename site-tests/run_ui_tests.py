@@ -116,6 +116,20 @@ def main():
         s.go("/organizer")
         check("protected page redirects to login", "#/login" in page.url)
 
+        # Guide
+        s.go("/guide")
+        check("guide is in the menu", page.locator(".nav-link", has_text="Guide").count() == 1)
+        check("guide has all sections", page.locator("[data-section]").count() == 8)
+        check("guide lists the AI models", page.locator(".guide-stack code", has_text="gemini-3.6-flash").count() == 1)
+        check("guide lists the PayPal APIs", page.locator(".guide-stack b", has_text="PayPal REST APIs").count() == 1)
+        check("guide shows the sandbox test card", "4111 1111 1111 1111" in page.locator("[data-section=players]").inner_text())
+        page.click("[data-jump=payments]")
+        page.wait_for_timeout(900)
+        check("guide contents jump to a section", page.locator("[data-section=payments]").evaluate("el => Math.abs(el.getBoundingClientRect().top - 96) < 40"))
+        page.click(".guide-faq-item summary >> nth=0")
+        check("guide FAQ opens", page.locator(".guide-faq-item[open]").count() == 1)
+        s.shot("guide")
+
         # Player pays with PayPal
         s.login("player1@demo.dev")
         check("player lands on catalog", "#/tournaments" in page.url)
@@ -350,7 +364,7 @@ def main():
 
         # Mobile layout
         m = Session(browser, base, 390, 844, "mobile")
-        for path, name in [("/", "home"), ("/tournaments", "catalog"), ("/t/1", "detail")]:
+        for path, name in [("/", "home"), ("/tournaments", "catalog"), ("/t/1", "detail"), ("/guide", "guide")]:
             m.go(path)
             width = m.page.evaluate("document.documentElement.scrollWidth")
             check(f"mobile {name} has no horizontal scroll ({width}px)", width <= 390)

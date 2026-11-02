@@ -7,6 +7,7 @@ import { creatorDashboardView, creatorPaymentsView, creatorTournamentsView, crea
 import { catalogView } from './views/catalog.js';
 import { notificationsView } from './views/notifications.js';
 import { bracketPageView, teamFinderView } from './views/play.js';
+import { guideView } from './views/guide.js';
 import { homeView } from './views/home.js';
 import { businessView, manageView, tournamentFormView } from './views/organizer.js';
 import { tablesView } from './views/player.js';
@@ -17,6 +18,7 @@ import { walletView } from './views/wallet.js';
 const ROUTES = [
   ['/', homeView],
   ['/tournaments', catalogView],
+  ['/guide', guideView],
   ['/t/:id', tournamentView],
   ['/t/:id/join', joinView],
   ['/login', loginView],
@@ -42,6 +44,7 @@ const ROUTES = [
 
 const NAV = {
   all: [['/tournaments', 'search', 'Tournaments', ['/tournaments', '/t/']]],
+  last: [['/guide', 'book', 'Guide', ['/guide']]],
   organizer: [
     ['/organizer/new', 'plus', 'Create tournament', ['/organizer/new']],
     ['/organizer', 'table', 'My tournaments', ['/organizer', '/organizer/t/']],
@@ -168,7 +171,7 @@ function isActive(path, prefixes) {
 
 function renderNav(path) {
   const role = state.profile?.role;
-  const links = [...NAV.all, ...(NAV[role] ?? [])];
+  const links = [...NAV.all, ...(NAV[role] ?? []), ...NAV.last];
   document.querySelector('[data-nav-links]').innerHTML = links.map(([href, ic, label, prefixes]) => html`
     <a href="#${href}" class="nav-link ${isActive(path, prefixes) ? 'active' : ''}">${icon(ic, 16)} ${label}</a>`).join('');
 
