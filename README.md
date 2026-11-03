@@ -7,9 +7,9 @@ PayPal accounts automatically. The platform earns 10% of every paid tournament.
 
 | | |
 |---|---|
-| 🌐 **Live site** | [raw.githack.com/m1ller750/TurniRUM/main/site/index.html](https://raw.githack.com/m1ller750/TurniRUM/main/site/index.html) (PayPal sandbox — no real money) |
+| 🌐 **Live site** | [open TurniRUM](https://raw.githack.com/m1ller750/-/claude/turnirum-tournament-platform-bq6cmd/site/index.html) (PayPal sandbox — no real money) |
 | 📖 **Guide** | [docs/GUIDE.md](docs/GUIDE.md) — also on the site under **Guide** |
-| 🎬 **Demo video** | [docs/demo/TurniRUM-demo.mp4](docs/demo/TurniRUM-demo.mp4) (≈3 min, English voice-over and subtitles) |
+| 🎬 **Demo video** | [docs/demo/TurniRUM-demo.mp4](docs/demo/TurniRUM-demo.mp4) — 2:50, English voice-over and subtitles ([.srt](docs/demo/TurniRUM-demo.srt), [how it was made](tools/demo-video/)) |
 | 🧰 **Built with** | [AI models, APIs and tools](docs/GUIDE.md#built-with-ai-models-apis-and-tools) |
 | ⚖️ **License** | [MIT](LICENSE) |
 
@@ -153,6 +153,7 @@ supabase/functions/api/   Edge Function: registration, creator password, PayPal 
 release/netlify/index.html  the whole site in one file (for Netlify), rebuilt by tools/build_netlify.py
 docs/GUIDE.md             user guide + the list of AI models, APIs and tools
 docs/demo/                demo video with English voice-over and subtitles (.srt)
+tools/demo-video/         the scripted pipeline that records and edits the demo video
 site-tests/               browser tests (Playwright) against an in-memory mock of api.js
 ```
 

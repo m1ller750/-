@@ -139,7 +139,8 @@ TurniRUM uses Google Gemini for the planning work. The AI suggests, the server c
 | Gemini 3.5 Flash-Lite | `gemini-3.5-flash-lite` | Fast model that answers first in the chain |
 | Gemini Flash-Lite (latest) | `gemini-flash-lite-latest` | Fallback when the other models are overloaded |
 | Gemini 3.5 Flash | `gemini-3.5-flash` | Last fallback of the chain |
-| Gemini 3.8 Flash TTS | `gemini-3.8-flash-tts` | Text-to-speech voice-over of the demo video |
+| Gemini 3.8 Flash TTS | `gemini-3.8-flash-tts` | Text-to-speech voice-over of the demo video (voice "Charon") |
+| Gemini 2.5 Flash TTS | `gemini-2.5-flash-preview-tts` | Voice-over of the last three scenes of the demo video, same voice |
 
 The server tries the models in turn (`app_settings.gemini_model` / `gemini_models` can put others first) and skips a
 model that is overloaded or unavailable.
@@ -169,7 +170,7 @@ model that is overloaded or unavailable.
 | GitHub · GitHub Actions | The open-source repository and the Windows build of the desktop version |
 | Playwright · Node.js | Browser tests of every page and randomized tests of the bracket engine |
 | Python · Flask · PyInstaller | The offline desktop version (`TurniRUM.exe`) |
-| FFmpeg | Editing of the demo video |
+| FFmpeg · Playwright | Recording the real UI, motion graphics, editing and subtitles of the demo video (`tools/demo-video/`) |
 | Claude Code (Anthropic) | AI coding assistant used to write, test and deploy the project |
 
 ## FAQ

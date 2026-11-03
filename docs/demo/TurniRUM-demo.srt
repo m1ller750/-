@@ -1,0 +1,195 @@
+1
+00:00:01,010 --> 00:00:04,324
+Running a tournament shouldn't be harder than winning one.
+
+2
+00:00:04,406 --> 00:00:08,303
+Yet most organizers still juggle spreadsheets and group chats:
+
+3
+00:00:08,343 --> 00:00:12,755
+drawing brackets by hand, chasing entry fees, and arguing about match times.
+
+4
+00:00:12,795 --> 00:00:15,665
+And players often wait weeks for their prize money.
+
+5
+00:00:16,295 --> 00:00:20,935
+Meet TurniRUM: an open-source tournament platform where AI does the organizing,
+
+6
+00:00:20,975 --> 00:00:22,791
+and PayPal handles the money.
+
+7
+00:00:22,931 --> 00:00:23,974
+You run the event.
+
+8
+00:00:24,014 --> 00:00:27,244
+The bracket, the schedule and the prizes take care of themselves.
+
+9
+00:00:27,674 --> 00:00:28,870
+Here's how it works.
+
+10
+00:00:28,910 --> 00:00:33,500
+The web app runs on Supabase: a Postgres database protected by row-level security,
+
+11
+00:00:33,540 --> 00:00:36,205
+and an Edge Function with all the business logic.
+
+12
+00:00:36,259 --> 00:00:41,010
+It asks Google Gemini to plan, uses PayPal for payments and payouts,
+
+13
+00:00:41,050 --> 00:00:44,891
+and Brevo for email, while a scheduled job sends the reminders.
+
+14
+00:00:45,921 --> 00:00:47,159
+Let's see it in action.
+
+15
+00:00:47,552 --> 00:00:51,787
+An organizer simply describes the event: a Valorant cup for sixteen teams,
+
+16
+00:00:51,827 --> 00:00:54,527
+twenty dollars entry, prizes for the top three.
+
+17
+00:00:55,309 --> 00:00:57,061
+Gemini fills in the whole form,
+
+18
+00:00:57,101 --> 00:01:01,129
+from the rules and the schedule to the prize split and the bracket format.
+
+19
+00:01:01,986 --> 00:01:05,556
+The organizer confirms the ten percent platform fee, and publishes.
+
+20
+00:01:06,686 --> 00:01:10,126
+Players register their team and pay the entry fee with PayPal,
+
+21
+00:01:10,166 --> 00:01:12,326
+using an account or a card.
+
+22
+00:01:12,949 --> 00:01:15,822
+Here we're in the PayPal sandbox, with a test card.
+
+23
+00:01:16,519 --> 00:01:19,359
+The server creates the order with the price from the database,
+
+24
+00:01:19,399 --> 00:01:23,960
+captures it, and admits the team only after PayPal confirms the payment.
+
+25
+00:01:24,088 --> 00:01:26,124
+Card details never touch our servers.
+
+26
+00:01:27,254 --> 00:01:31,574
+When registration closes, one click lets the AI choose the format,
+
+27
+00:01:31,614 --> 00:01:35,365
+seed the teams by their past results, and plan the schedule.
+
+28
+00:01:36,006 --> 00:01:39,220
+The bracket is ready, and every captain is notified.
+
+29
+00:01:40,050 --> 00:01:41,293
+Can't make your match?
+
+30
+00:01:41,513 --> 00:01:43,559
+When both captains press Reschedule,
+
+31
+00:01:43,599 --> 00:01:46,719
+the AI moves it to a free slot with no clashes.
+
+32
+00:01:46,932 --> 00:01:50,387
+And reminders go out by email, a day and an hour before.
+
+33
+00:01:51,117 --> 00:01:52,245
+Need teammates?
+
+34
+00:01:52,296 --> 00:01:54,395
+The AI studies the tournaments you've played,
+
+35
+00:01:54,435 --> 00:01:57,878
+and suggests players who fit, explaining every pick.
+
+36
+00:01:59,208 --> 00:02:02,315
+Results update the bracket and the standings live.
+
+37
+00:02:03,134 --> 00:02:05,034
+When the organizer finishes the tournament,
+
+38
+00:02:05,074 --> 00:02:07,226
+TurniRUM settles the money automatically.
+
+39
+00:02:08,217 --> 00:02:11,787
+Prizes go straight to the winners' PayPal accounts through PayPal Payouts,
+
+40
+00:02:11,827 --> 00:02:15,721
+ten percent goes to the platform, and the organizer withdraws the rest.
+
+41
+00:02:16,751 --> 00:02:21,878
+So Gemini works in seven places: drafting, formats, seeding,
+
+42
+00:02:21,918 --> 00:02:25,124
+scheduling, rescheduling, reminders and teammate matching.
+
+43
+00:02:25,164 --> 00:02:29,807
+And there's always a safe fallback when a model is busy.
+
+44
+00:02:30,537 --> 00:02:33,372
+Organizers save hours and get paid fairly.
+
+45
+00:02:33,444 --> 00:02:37,506
+Players get clear brackets, fair schedules, and prizes paid automatically.
+
+46
+00:02:37,546 --> 00:02:42,047
+And clubs and communities can finally run paid events with full transparency.
+
+47
+00:02:42,577 --> 00:02:43,494
+TurniRUM.
+
+48
+00:02:43,535 --> 00:02:45,339
+Tournaments that run themselves.
+
+49
+00:02:45,379 --> 00:02:47,239
+Open source, on GitHub.

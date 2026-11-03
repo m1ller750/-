@@ -1,0 +1,49 @@
+[
+ {"id": "problem", "kind": "motion", "sentences": [
+   "Running a tournament shouldn't be harder than winning one.",
+   "Yet most organizers still juggle spreadsheets and group chats: drawing brackets by hand, chasing entry fees, and arguing about match times.",
+   "And players often wait weeks for their prize money."]},
+ {"id": "intro", "kind": "motion", "sentences": [
+   "Meet TurniRUM: an open-source tournament platform where AI does the organizing, and PayPal handles the money.",
+   "You run the event.",
+   "The bracket, the schedule and the prizes take care of themselves."]},
+ {"id": "architecture", "kind": "motion", "sentences": [
+   "Here's how it works.",
+   "The web app runs on Supabase: a Postgres database protected by row-level security, and an Edge Function with all the business logic.",
+   "It asks Google Gemini to plan, uses PayPal for payments and payouts, and Brevo for email, while a scheduled job sends the reminders."]},
+ {"id": "create", "kind": "screen", "sentences": [
+   "Let's see it in action.",
+   "An organizer simply describes the event: a Valorant cup for sixteen teams, twenty dollars entry, prizes for the top three.",
+   "Gemini fills in the whole form, from the rules and the schedule to the prize split and the bracket format.",
+   "The organizer confirms the ten percent platform fee, and publishes."]},
+ {"id": "pay", "kind": "screen", "sentences": [
+   "Players register their team and pay the entry fee with PayPal, using an account or a card.",
+   "Here we're in the PayPal sandbox, with a test card.",
+   "The server creates the order with the price from the database, captures it, and admits the team only after PayPal confirms the payment.",
+   "Card details never touch our servers."]},
+ {"id": "bracket", "kind": "screen", "sentences": [
+   "When registration closes, one click lets the AI choose the format, seed the teams by their past results, and plan the schedule.",
+   "The bracket is ready, and every captain is notified."]},
+ {"id": "reschedule", "kind": "screen", "sentences": [
+   "Can't make your match?",
+   "When both captains press Reschedule, the AI moves it to a free slot with no clashes.",
+   "And reminders go out by email, a day and an hour before."]},
+ {"id": "teammates", "kind": "screen", "sentences": [
+   "Need teammates?",
+   "The AI studies the tournaments you've played, and suggests players who fit, explaining every pick."]},
+ {"id": "results", "kind": "screen", "sentences": [
+   "Results update the bracket and the standings live.",
+   "When the organizer finishes the tournament, TurniRUM settles the money automatically.",
+   "Prizes go straight to the winners' PayPal accounts through PayPal Payouts, ten percent goes to the platform, and the organizer withdraws the rest."]},
+ {"id": "ai", "kind": "motion", "sentences": [
+   "So Gemini works in seven places: drafting, formats, seeding, scheduling, rescheduling, reminders and teammate matching.",
+   "And there's always a safe fallback when a model is busy."]},
+ {"id": "benefits", "kind": "motion", "sentences": [
+   "Organizers save hours and get paid fairly.",
+   "Players get clear brackets, fair schedules, and prizes paid automatically.",
+   "And clubs and communities can finally run paid events with full transparency."]},
+ {"id": "outro", "kind": "motion", "sentences": [
+   "TurniRUM.",
+   "Tournaments that run themselves.",
+   "Open source, on GitHub."]}
+]

@@ -90,7 +90,8 @@ const BUILT_WITH = [
     ['Gemini 3.5 Flash-Lite', 'gemini-3.5-flash-lite', 'Fast model that answers first in our chain.'],
     ['Gemini Flash-Lite (latest)', 'gemini-flash-lite-latest', 'Fallback when the other models are overloaded.'],
     ['Gemini 3.5 Flash', 'gemini-3.5-flash', 'Last fallback of the chain.'],
-    ['Gemini 3.8 Flash TTS', 'gemini-3.8-flash-tts', 'Text-to-speech voice-over of the demo video.'],
+    ['Gemini 3.8 Flash TTS', 'gemini-3.8-flash-tts', 'Text-to-speech voice-over of the demo video (voice “Charon”).'],
+    ['Gemini 2.5 Flash TTS', 'gemini-2.5-flash-preview-tts', 'Voice-over of the last three scenes of the demo video, same voice.'],
   ]],
   ['plug', 'APIs', [
     ['Gemini API', 'generateContent', 'All AI features, with JSON Schema answers that the server validates.'],
@@ -111,7 +112,7 @@ const BUILT_WITH = [
     ['GitHub · GitHub Actions', 'code + CI', 'The open-source repository and the Windows build of the desktop version.'],
     ['Playwright · Node.js', 'tests', 'Browser tests of every page and randomized tests of the bracket engine.'],
     ['Python · Flask · PyInstaller', 'desktop', 'The offline desktop version (TurniRUM.exe).'],
-    ['FFmpeg', 'video', 'Editing of the demo video.'],
+    ['FFmpeg · Playwright', 'demo video', 'Recording the real UI, motion graphics, editing and subtitles of the demo video.'],
     ['Claude Code', 'Anthropic', 'AI coding assistant used to write, test and deploy the project.'],
   ]],
 ];
