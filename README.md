@@ -7,7 +7,7 @@ PayPal accounts automatically. The platform earns 10% of every paid tournament.
 
 | | |
 |---|---|
-| 🌐 **Live site** | [open TurniRUM](https://raw.githack.com/m1ller750/-/claude/turnirum-tournament-platform-bq6cmd/site/index.html) (PayPal sandbox — no real money) |
+| 🌐 **Live site** | [open TurniRUM](https://raw.githack.com/m1ller750/TurniRUM/claude/turnirum-tournament-platform-bq6cmd/site/index.html) (PayPal sandbox — no real money) |
 | 📖 **Guide** | [docs/GUIDE.md](docs/GUIDE.md) — also on the site under **Guide** |
 | 🎬 **Demo video** | [docs/demo/TurniRUM-demo.mp4](docs/demo/TurniRUM-demo.mp4) — 2:50, English voice-over and subtitles ([.srt](docs/demo/TurniRUM-demo.srt), [how it was made](tools/demo-video/)) |
 | 🧰 **Built with** | [AI models, APIs and tools](docs/GUIDE.md#built-with-ai-models-apis-and-tools) |
